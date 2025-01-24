@@ -1,0 +1,85 @@
+<script lang="ts">
+    import Dice from "./Dice.svelte";
+
+    let animate: boolean = false;
+    let timerId: number|null = null;
+    let mainDice: number|null = 6;
+
+    export let diceFaces: number[]|null = null;
+    export let animationDelayMs = 120;
+    export const startAnimation: () => void = () => {
+        animate = true;
+        animationFrame();
+    }
+    export const stopAnimation: () => void = () => {
+        animate = false;
+        if (timerId !== null) {
+            clearTimeout(timerId);
+        }
+    }
+    export const roll: () => number|null = () => {
+        stopAnimation();
+        mainDice = doRoll();
+        return mainDice;
+    };
+
+    function animationFrame() {
+        if (timerId !== null) {
+            clearTimeout(timerId);
+            timerId = null;
+        }
+        mainDice = changeRoll(mainDice);
+        if (animate) {
+            timerId = setTimeout(() => {
+                timerId = null;
+                animationFrame();
+            }, animationDelayMs * (Math.random() + 0.5));
+        }
+    }
+    function changeRoll(current: number|null) {
+        if (current === null) {
+            return doRoll();
+        }
+        if (diceFaces === null) {
+            return null;
+        } else if (current === null) {
+            return doRoll();
+        } else {
+            let roll = diceFaces[Math.floor(Math.random() * diceFaces.length)];
+            if (roll === current) {
+                // Try again just once
+                roll = diceFaces[Math.floor(Math.random() * diceFaces.length)];
+            }
+            return roll;
+        }
+    }
+    function doRoll() {
+        if (diceFaces === null) {
+            return null;
+        } else {
+            return diceFaces[Math.floor(Math.random() * diceFaces.length)];
+        }
+    }
+</script>
+<section>
+    <div class="dice">
+        <Dice value={mainDice} filled={true} size="64" color="hsl(180, 80%, 80%)" />
+    </div>
+</section>
+<style>
+    section {
+        display: flex;
+        flex-flow: row nowrap;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        padding: 0 10px;
+
+        > .dice {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 5px hsl(180, 80%, 80%);
+        }
+    }
+</style>
