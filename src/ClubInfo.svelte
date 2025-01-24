@@ -10,7 +10,7 @@
 <article>
     <ul class="dice-faces">
         {#each clubData.diceFaces() as face}
-            <li><Dice value={face} filled={false} size="26" stroke="2"></Dice></li>
+            <li><Dice value={face} filled={false} size="26" stroke="2" color={face < 5 ? 'white' : 'hsl(20, 80%, 75%)'}></Dice></li>
         {/each}
     </ul>
     <ul class="terrain">

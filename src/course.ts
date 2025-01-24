@@ -23,7 +23,7 @@ export function getCellData(cellType: CellType): CellData {
         case CellType.Fairway: return new CellData(CellBlockType.None, false, 0, 1);
         case CellType.Rough: return new CellData(CellBlockType.None, false, 0, 0);
         case CellType.Water: return new CellData(CellBlockType.None, true, 0, 0);
-        case CellType.Sand: return new CellData(CellBlockType.None, false, 0, 0);
+        case CellType.Sand: return new CellData(CellBlockType.None, false, -1, 0);
         case CellType.Tree: return new CellData(CellBlockType.Stick, false, 0, 0);
         case CellType.Rock: return new CellData(CellBlockType.Block, false, 0, 0);
         case CellType.Hole: return new CellData(CellBlockType.None, false, 0, 0);
@@ -36,10 +36,10 @@ export class CellData {
     shotModifier: number;
     rollDistance: number;
 
-    constructor(blockType: CellBlockType, outOfBounds: boolean, shotBonus: number, landingBonus: number) {
+    constructor(blockType: CellBlockType, outOfBounds: boolean, shotModifier: number, landingBonus: number) {
         this.blockType = blockType;
         this.outOfBounds = outOfBounds;
-        this.shotModifier = shotBonus;
+        this.shotModifier = shotModifier;
         this.rollDistance = landingBonus;
     }
 }
@@ -213,4 +213,8 @@ export function moveInDirection(position: [number, number], direction: Direction
         case Direction.W: return [position[0] - 1, position[1]];
         case Direction.NW: return [position[0] - 1, position[1] - 1];
     }
+}
+
+export function rotateDirection(direction: Direction, angle: number): Direction {
+    return (((direction + angle) % 8) + 8) % 8;
 }

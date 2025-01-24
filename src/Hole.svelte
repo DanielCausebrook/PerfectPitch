@@ -1,5 +1,5 @@
 <script lang="ts">
-    import {CellBlockType, CellType, Course, Direction, getCellData, moveInDirection} from "./course";
+    import {CellBlockType, CellType, Course, Direction, getCellData, moveInDirection, rotateDirection} from "./course";
     import CourseView from "./CourseView.svelte";
     import ClubSelector from "./ClubSelector.svelte";
     import DiceRoller from "./DiceRoller.svelte";
@@ -8,6 +8,7 @@
     import {timeout} from "./utilities";
     import ClubInfo from "./ClubInfo.svelte";
     import {IconArrowBigRight, IconClipboardList} from "@tabler/icons-svelte";
+    import {nativeMath, pick} from "random-js";
 
     export let course: Course;
     export let player: Player;
@@ -52,30 +53,35 @@
             throw new Error("Move was null.");
         }
 
-        let movementRemaining: number = diceRoll;
-        let distanceRolled = 0;
+        let distanceBounced = 0;
 
         let startingPosition = player.position;
+        let movementRemaining: number = diceRoll + getCellData(course.cell(startingPosition)).shotModifier;
         while (movementRemaining > 0) {
             movementRemaining--;
-            let newPosition = moveInDirection(player.position, direction);
+            let adjustedDirection = direction;
+            if (movementRemaining === 0 && distanceBounced === 0 && diceRoll >= 5) {
+                adjustedDirection = rotateDirection(direction, pick(nativeMath, [-1, 0, 0, 1]));
+            }
+            let newPosition = moveInDirection(player.position, adjustedDirection);
             if (!course.isValidPosition(newPosition)) {
                 await timeout(200);
                 movementRemaining = 0;
                 break;
             }
+
             let cell = course.cell(newPosition);
             let cellData = getCellData(cell);
             if (cellData.blockType === CellBlockType.Block) {
                 await timeout(200);
                 movementRemaining = 0;
                 break;
-            } else if (cellData.blockType === CellBlockType.Stick) {
+            } else if (cellData.blockType === CellBlockType.Stick && !clubData.noStick()) {
                 await timeout(200);
                 movementRemaining = 0;
             } else {
-                if (movementRemaining === 0 && distanceRolled < cellData.rollDistance && clubData.allowsRolls()) {
-                    distanceRolled++;
+                if (movementRemaining === 0 && distanceBounced < cellData.rollDistance && clubData.allowsRolls()) {
+                    distanceBounced++;
                     movementRemaining++;
                 }
             }

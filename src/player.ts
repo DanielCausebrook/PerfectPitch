@@ -9,12 +9,14 @@ export enum ClubType {
 
 export class ClubData {
     #diceFaces: number[];
-    #allowRolls: boolean;
+    #bounces: boolean;
+    #noStick: boolean;
     #canUseOn: CellType[];
 
-    constructor(diceFaces: number[], rollsOnGreen: boolean, canUseOn: CellType[]) {
+    constructor(diceFaces: number[], bounces: boolean, noStick:boolean, canUseOn: CellType[]) {
         this.#diceFaces = diceFaces;
-        this.#allowRolls = rollsOnGreen;
+        this.#bounces = bounces;
+        this.#noStick = noStick;
         this.#canUseOn = canUseOn;
     }
 
@@ -22,7 +24,10 @@ export class ClubData {
         return this.#diceFaces;
     }
     allowsRolls(): boolean {
-        return this.#allowRolls;
+        return this.#bounces;
+    }
+    noStick(): boolean {
+        return this.#noStick;
     }
     cellTypes(): CellType[] {
         return this.#canUseOn;
@@ -34,10 +39,10 @@ export class ClubData {
 
 export function getClubData(clubType: ClubType) {
     switch (clubType) {
-        case ClubType.Putter: return new ClubData([1, 1, 1, 1, 2], false, [CellType.Fairway]);
-        case ClubType.Iron: return new ClubData([1, 2, 3, 3, 4], true, [CellType.Fairway, CellType.Rough, CellType.Tree]);
-        case ClubType.Driver: return new ClubData([3, 4, 5, 6], true, [CellType.Fairway, CellType.Rough]);
-        case ClubType.Wedge: return new ClubData([0, 1, 1, 2], false, [CellType.Fairway, CellType.Rough, CellType.Sand, CellType.Tree]);
+        case ClubType.Putter: return new ClubData([1, 1, 1, 1, 2], false, false, [CellType.Fairway]);
+        case ClubType.Iron: return new ClubData([1, 2, 3, 3, 4], true, false, [CellType.Fairway, CellType.Rough, CellType.Tree]);
+        case ClubType.Driver: return new ClubData([3, 4, 5, 6], true, false, [CellType.Fairway, CellType.Rough]);
+        case ClubType.Wedge: return new ClubData([1, 2, 2, 2, 3], false, true, [CellType.Fairway, CellType.Rough, CellType.Sand, CellType.Tree]);
     }
 }
 
