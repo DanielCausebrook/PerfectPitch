@@ -126,7 +126,7 @@
                         padding: 5px 10px;
                         background: hsl(0, 0%, 12%);
                         color: hsl(0, 0%, 80%);
-                        border-radius: 0 2px 2px 0;
+                        border-radius: 2px;
 
                         &[disabled] {
                             color: hsl(0, 0%, 45%);
@@ -142,6 +142,10 @@
 
                         &:focus-within {
                             outline-color: hsl(0, 0%, 50%);
+                        }
+                        > button {
+                            border-radius: 0 2px 2px 0;
+
                         }
                         > input {
                             background: hsl(0, 0%, 20%);
