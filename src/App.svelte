@@ -1,29 +1,28 @@
 <script lang="ts">
     import {IconDice3Filled, IconSeedling} from "@tabler/icons-svelte";
     import {MersenneTwister19937} from "random-js";
-    import {Course} from "../course";
-    import {Player} from "../player";
-    import Round from "../Round.svelte";
+    import {Player} from "./player";
+    import {Course} from "./course";
+    import Round from "./Round.svelte";
+    import {goto} from "$app/navigation";
+    import {randomSeed, seedFromString} from "./seed";
+    import {seedToSeedId} from "./seed.js";
+    import {base} from "$app/paths";
 
-    let now = new Date();
+    export let seed: number;
 
-    let currentSeed: number|null = null;
-    let seedInput: number = now.getFullYear() * 10000 + (now.getMonth()+1) * 100 + now.getDate();
-    let nextSeed: number|null = null;
+    let currentRoundSeed: number|null = null;
+    let nextRoundSeed: number|null = null;
+
+    let seedStringInput: string;
 
     let course: Course|null;
-
-
     let player: Player = new Player([0, 0], 4);
-
-    function randomiseSeed() {
-        seedInput = MersenneTwister19937.autoSeed().next();
-    }
 
     function beginRound(seed: number) {
         let rng = MersenneTwister19937.seed(seed);
-        currentSeed = seed;
-        nextSeed = rng.next();
+        currentRoundSeed = seed;
+        nextRoundSeed = rng.next();
         let maybeCourse: Course|null = null;
         while (maybeCourse === null) {
             maybeCourse = Course.generate(20, 20, MersenneTwister19937.seed(rng.next()));
@@ -32,18 +31,28 @@
         player.position = course.tee();
     }
 
-    beginRound(seedInput);
-
-    function newGame() {
-        player.newGame();
-        beginRound(seedInput);
-    }
-
     function nextRound() {
         player.newRound();
-        beginRound(nextSeed ?? MersenneTwister19937.autoSeed().next());
+        beginRound(nextRoundSeed ?? MersenneTwister19937.autoSeed().next());
     }
 
+    function randomGame() {
+        seed = randomSeed();
+        goto(base + '/play?seed=' + seedToSeedId(seed)).then(() => {
+            navigator.clipboard.writeText(window.location.toString());
+        });
+        beginRound(seed);
+    }
+
+    async function seedGame() {
+        seed = await seedFromString(seedStringInput);
+        goto(base + '/play?seed=' + seedToSeedId(seed)).then(() => {
+            navigator.clipboard.writeText(window.location.toString())
+        });
+        beginRound(seed);
+    }
+
+    beginRound(seed);
 </script>
 
 <div class="wrapper">
@@ -51,11 +60,11 @@
         <div>
             <span>Puttarium</span>
             <div class="new-round">
-                <input type="text" onfocus={e => e.currentTarget.select()} onkeydown={e => {if (e.key === "Escape" && currentSeed !== null) {seedInput = currentSeed; e.currentTarget.blur();}}} bind:value={seedInput} size="12" />
-                <button type="button" onclick={() => newGame()}>
+                <input type="text" onfocus={e => e.currentTarget.select()} onkeydown={e => {if (e.key === "Enter") { seedGame(); }}} bind:value={seedStringInput} size="12" />
+                <button type="button" onclick={seedGame}>
                     <IconSeedling size="16" stroke="3"/>
                 </button>
-                <button type="button" onclick={() => {randomiseSeed(); newGame();}}>
+                <button type="button" onclick={randomGame}>
                     <IconDice3Filled size="16" stroke="3" />
                 </button>
             </div>
