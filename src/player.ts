@@ -25,6 +25,7 @@ export class Player {
     }
 
     newGame(): void {
+        this.#currRound = 0;
         this.#scoreBoard.fill(0);
     }
 
@@ -33,10 +34,6 @@ export class Player {
             throw new Error("Cannot start new round. Already at last round!");
         }
         this.#currRound++;
-    }
-
-    scoreboard(): number[] {
-        return this.#scoreBoard;
     }
 
     round(): number {

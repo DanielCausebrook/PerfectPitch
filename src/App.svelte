@@ -37,6 +37,8 @@
     }
 
     function randomGame() {
+        player.newGame();
+        seedStringInput = '';
         seed = randomSeed();
         goto(base + '/play?seed=' + seedToSeedId(seed)).then(() => {
             navigator.clipboard.writeText(window.location.toString());
@@ -45,6 +47,7 @@
     }
 
     async function seedGame() {
+        player.newGame();
         seed = await seedFromString(seedStringInput);
         goto(base + '/play?seed=' + seedToSeedId(seed)).then(() => {
             navigator.clipboard.writeText(window.location.toString())
