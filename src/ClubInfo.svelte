@@ -3,7 +3,7 @@
     import Dice from "./Dice.svelte";
     import Cell from "./Cell.svelte";
     import {
-        IconBounceRightFilled,
+        IconBounceRightFilled, IconExposureMinus1, IconExposurePlus1,
         IconPlaneTilt,
     } from "@tabler/icons-svelte";
     import {CellData, type CellType, getCellData} from "./course";
@@ -16,7 +16,7 @@
 <article>
     <ul class="dice-faces">
         {#each clubData.diceFaces() as face}
-            <li><Dice value={face} filled={false} size="36" stroke="2" color={face < 5 ? 'white' : 'hsl(20, 80%, 75%)'}></Dice></li>
+            <li><Dice value={face} filled={false} size="38" stroke="1.7" color={face < 5 ? 'white' : 'hsl(20, 80%, 75%)'}></Dice></li>
         {/each}
         {#if !clubData.noShotModifier() && cellData.shotModifier !== 0}
             <li class="shot-modifier" style="color:{cellData.primaryColor}">

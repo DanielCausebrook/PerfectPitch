@@ -61,7 +61,7 @@
     >
         <IconPoint stroke="3" size="28"/>
         Putter
-        <span class="selection-marker"><IconChevronCompactDown size="56" color="hsl(180, 80%, 80%)" /></span>
+        <span class="selection-marker"><IconChevronCompactDown size="56" /></span>
     </button>
     <button
             class="wedge"
@@ -73,7 +73,7 @@
     >
         <IconCone stroke="3" size="28" />
         Wedge
-        <span class="selection-marker"><IconChevronCompactDown size="56" color="hsl(180, 80%, 80%)" /></span>
+        <span class="selection-marker"><IconChevronCompactDown size="56" /></span>
     </button>
     <button
             class="iron"
@@ -85,7 +85,7 @@
     >
         <IconDiamonds stroke="3" size="28" />
         Iron
-        <span class="selection-marker"><IconChevronCompactDown size="56" color="hsl(180, 80%, 80%)" /></span>
+        <span class="selection-marker"><IconChevronCompactDown size="56" /></span>
     </button>
     <button
             class="driver"
@@ -97,7 +97,7 @@
     >
         <IconArrowBigRight stroke="3" size="28" />
         Driver
-        <span class="selection-marker"><IconChevronCompactDown size="56" color="hsl(180, 80%, 80%)" /></span>
+        <span class="selection-marker"><IconChevronCompactDown size="56" /></span>
     </button>
 </section>
 <style>
@@ -114,7 +114,7 @@
             gap: 10px;
             position: relative;
             padding: 8px 16px;
-            background: hsl(240, 60%, 55%);
+            background: hsl(210, 70%, 50%);
             border-radius: 5px;
 
             &[disabled] {
@@ -123,7 +123,7 @@
             }
 
             &.selected {
-                background: hsl(220, 60%, 60%);
+                background: hsl(210, 60%, 65%);
                 > .selection-marker {
                     display: block;
                     position: absolute;
@@ -135,6 +135,7 @@
 
             > .selection-marker {
                 display: none;
+                color: white;
             }
         }
     }

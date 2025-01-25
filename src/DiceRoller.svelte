@@ -63,7 +63,7 @@
 </script>
 <section>
     <div class="dice">
-        <Dice value={mainDice} filled={true} size="64" color="hsl(180, 80%, 80%)" />
+        <Dice value={mainDice} filled={true} size="64" color="hsl(0, 0%, 80%)" />
     </div>
 </section>
 <style>
@@ -79,7 +79,9 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0 5px hsl(180, 80%, 80%);
+            box-shadow: 0 0 3px hsl(0, 0%, 40%);
+            border: 2px solid hsl(0, 0%, 40%);
+            border-radius: 14px;
         }
     }
 </style>

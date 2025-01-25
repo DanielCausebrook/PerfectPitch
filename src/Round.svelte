@@ -16,7 +16,7 @@
     import {onMount} from "svelte";
     import {timeout} from "./utilities";
     import ClubInfo from "./ClubInfo.svelte";
-    import {IconArrowBigRight} from "@tabler/icons-svelte";
+    import {IconArrowRight} from "@tabler/icons-svelte";
     import {nativeMath, pick} from "random-js";
     import {SoundEffect} from "./soundEffect";
     import type {Player} from "./player";
@@ -95,7 +95,7 @@
                 movementRemaining = 0;
                 break;
             } else if (cellData.blockType === CellBlockType.Stick && !clubData.noStick()) {
-                await timeout(200);
+                await timeout(100);
                 movementRemaining = 0;
             } else {
                 if (movementRemaining === 0 && distanceBounced < cellData.rollDistance && clubData.allowsRolls()) {
@@ -162,7 +162,7 @@
 <!--                        <IconClipboardList size="36" stroke="3"/>-->
                     {:else}
                         <button type="button" onclick={() => onCompletion()}>
-                            <IconArrowBigRight stroke="4" />
+                            <IconArrowRight stroke="4" />
                         </button>
                     {/if}
                 </div>
@@ -250,7 +250,7 @@
                     align-items: center;
                     padding: 5px 10px;
                     font-size: 24pt;
-                    color: hsl(180, 80%, 80%);
+                    color: hsl(210, 80%, 80%);
                 }
                 > ul {
                     display: flex;
@@ -269,11 +269,11 @@
                         padding: 5px;
                         font-size: 20pt;
                         border-radius: 8px;
-                        background: hsla(180, 80%, 80%, 15%);
+                        background: hsla(210, 80%, 80%, 15%);
                         width: 40px;
                         line-height: 1cap;
                         &.latest {
-                            box-shadow: 0 0 5px 2px hsl(180, 80%, 80%) inset;
+                            box-shadow: 0 0 5px 2px hsl(210, 80%, 80%) inset;
                         }
                     }
                 }
