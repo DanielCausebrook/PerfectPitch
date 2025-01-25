@@ -1,6 +1,7 @@
 import {createNoise2D, type NoiseFunction2D} from "simplex-noise";
 import {Player} from "./player";
 import {type Engine, MersenneTwister19937, pick, real} from "random-js";
+import {SoundEffect} from "./soundEffect";
 
 export enum CellType {
     Hole,
@@ -22,9 +23,9 @@ export function getCellData(cellType: CellType): CellData {
     switch (cellType) {
         case CellType.Fairway: return new CellData(CellBlockType.None, false, 0, 1);
         case CellType.Rough: return new CellData(CellBlockType.None, false, 0, 0);
-        case CellType.Water: return new CellData(CellBlockType.None, true, 0, 0);
-        case CellType.Sand: return new CellData(CellBlockType.None, false, -1, 0);
-        case CellType.Tree: return new CellData(CellBlockType.Stick, false, 0, 0);
+        case CellType.Water: return new CellData(CellBlockType.None, true, 0, 0).setSoundEffect(SoundEffect.water);
+        case CellType.Sand: return new CellData(CellBlockType.None, false, -1, 0).setSoundEffect(SoundEffect.bunker);
+        case CellType.Tree: return new CellData(CellBlockType.Stick, false, 0, 0).setSoundEffect(SoundEffect.tree);
         case CellType.Rock: return new CellData(CellBlockType.Block, false, 0, 0);
         case CellType.Hole: return new CellData(CellBlockType.None, false, 0, 0);
     }
@@ -35,12 +36,18 @@ export class CellData {
     outOfBounds: boolean;
     shotModifier: number;
     rollDistance: number;
+    soundEffect: SoundEffect|null = null;
 
     constructor(blockType: CellBlockType, outOfBounds: boolean, shotModifier: number, landingBonus: number) {
         this.blockType = blockType;
         this.outOfBounds = outOfBounds;
         this.shotModifier = shotModifier;
         this.rollDistance = landingBonus;
+    }
+
+    setSoundEffect(effect: SoundEffect): this {
+        this.soundEffect = effect;
+        return this;
     }
 }
 

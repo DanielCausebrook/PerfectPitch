@@ -24,3 +24,6 @@ vite.config.ts.timestamp-*
 
 # JetBrains
 .idea/
+
+# Licensed Sound Effects
+/src/lib/licensed/

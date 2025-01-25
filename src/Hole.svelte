@@ -9,6 +9,7 @@
     import ClubInfo from "./ClubInfo.svelte";
     import {IconArrowBigRight, IconClipboardList} from "@tabler/icons-svelte";
     import {nativeMath, pick} from "random-js";
+    import {SoundEffect} from "./soundEffect";
 
     export let course: Course;
     export let player: Player;
@@ -46,6 +47,7 @@
         let direction = await selectDirection(player);
         cancelClubRequest();
         let clubData = getClubData(selectedClub);
+        clubData.soundEffect(course.cell(player.position)).play();
         numStrokes++;
 
         let diceRoll = rollDice();
@@ -53,6 +55,7 @@
             throw new Error("Move was null.");
         }
 
+        let distanceMoved = 0;
         let distanceBounced = 0;
 
         let startingPosition = player.position;
@@ -64,8 +67,10 @@
                 adjustedDirection = rotateDirection(direction, pick(nativeMath, [-1, 0, 0, 1]));
             }
             let newPosition = moveInDirection(player.position, adjustedDirection);
+            distanceMoved++;
             if (!course.isValidPosition(newPosition)) {
                 await timeout(200);
+                distanceMoved--;
                 movementRemaining = 0;
                 break;
             }
@@ -74,6 +79,7 @@
             let cellData = getCellData(cell);
             if (cellData.blockType === CellBlockType.Block) {
                 await timeout(200);
+                distanceMoved--;
                 movementRemaining = 0;
                 break;
             } else if (cellData.blockType === CellBlockType.Stick && !clubData.noStick()) {
@@ -90,6 +96,9 @@
         }
         let cell = course.cell(player.position);
         let cellData = getCellData(cell);
+        if (distanceMoved > 0) {
+            cellData.soundEffect?.play();
+        }
         if (cellData.outOfBounds) {
             showBall = false;
             await splashAnimation(player.position, direction);
@@ -97,6 +106,7 @@
             player.position = startingPosition;
         } else if (cell === CellType.Hole) {
             win = true;
+            SoundEffect.hole.play();
             sinkAnimation(player.position);
         }
     }
@@ -112,22 +122,18 @@
 <article>
     <div class="header">
         <div class="hole-number">Hole {scoreboard.length + 1}</div>
-        {#if win}
-            <div class="scoreboard">
-                <ul>
-                    {#each {length: holesPerGame} as _, i}
-                        {#if i === scoreboard.length}
-                            <li class="latest">{numStrokes}</li>
-                        {:else}
-                            <li>{(scoreboard.length > i) ? scoreboard[i] : ''}</li>
-                        {/if}
-                    {/each}
-                </ul>
-                <div class="total-score">{scoreboard.reduce((sum, score) => sum + score, numStrokes)}</div>
-            </div>
-        {:else}
-            <div class="stroke-counter">{numStrokes} {numStrokes === 1 ? 'Stroke' : 'Strokes'}</div>
-        {/if}
+        <div class="scoreboard">
+            <ul>
+                {#each {length: holesPerGame} as _, i}
+                    {#if i === scoreboard.length}
+                        <li class="latest">{numStrokes}</li>
+                    {:else}
+                        <li>{(scoreboard.length > i) ? scoreboard[i] : ''}</li>
+                    {/if}
+                {/each}
+            </ul>
+            <div class="total-score">{scoreboard.reduce((sum, score) => sum + score, numStrokes)}</div>
+        </div>
     </div>
     <div class="course">
         <CourseView course={course} ballPos={showBall ? player.position : null} bind:selectDirection={selectDirection} bind:sinkAnimation={sinkAnimation} bind:splashAnimation={splashAnimation} />
