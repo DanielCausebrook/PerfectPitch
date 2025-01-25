@@ -12,18 +12,18 @@
     import CourseView from "./CourseView.svelte";
     import ClubSelector from "./ClubSelector.svelte";
     import DiceRoller from "./DiceRoller.svelte";
-    import {ClubType, getClubData, Player} from "./player.js";
+    import {ClubType, getClubData} from "./club.js";
     import {onMount} from "svelte";
     import {timeout} from "./utilities";
     import ClubInfo from "./ClubInfo.svelte";
     import {IconArrowBigRight} from "@tabler/icons-svelte";
     import {nativeMath, pick} from "random-js";
     import {SoundEffect} from "./soundEffect";
+    import type {Player} from "./player";
 
     export let course: Course;
     export let player: Player;
-    export let onCompletion: (score: number) => void = () => {};
-    export let scoreboard: number[];
+    export let onCompletion: () => void = () => {};
 
     const holesPerGame:number = 4;
 
@@ -42,7 +42,6 @@
 
     let win: boolean = false;
     let diceFaces: number[]|null = null;
-    let numStrokes: number = 0;
     let showBall: boolean = true;
 
     async function takeTurn() {
@@ -57,7 +56,7 @@
         cancelClubRequest();
         let clubData = getClubData(selectedClub);
         clubData.soundEffect(course.cell(player.position)).play();
-        numStrokes++;
+        player.addStroke();
 
         let diceRoll = rollDice();
         if (diceRoll === null) {
@@ -134,18 +133,18 @@
 
 <article>
     <div class="header">
-        <div class="hole-number">Hole {scoreboard.length + 1}</div>
+        <div class="hole-number">Hole {player.round() + 1}</div>
         <div class="scoreboard">
             <ul>
-                {#each {length: holesPerGame} as _, i}
-                    {#if i === scoreboard.length}
-                        <li class="latest">{numStrokes}</li>
+                {#each {length: holesPerGame} as _, roundNum}
+                    {#if roundNum === player.round()}
+                        <li class="latest">{player.strokes()}</li>
                     {:else}
-                        <li>{(scoreboard.length > i) ? scoreboard[i] : ''}</li>
+                        <li>{(roundNum < player.round()) ? player.strokes(roundNum) : ''}</li>
                     {/if}
                 {/each}
             </ul>
-            <div class="total-score">{scoreboard.reduce((sum, score) => sum + score, numStrokes)}</div>
+            <div class="total-score">{player.totalStrokes()}</div>
         </div>
     </div>
     <div class="course">
@@ -159,10 +158,10 @@
             {#if win}
                 <div class="win">
                     <span>Congratulations!</span>
-                    {#if scoreboard.length + 1 >= holesPerGame}
+                    {#if player.round() >= player.numRounds() - 1}
 <!--                        <IconClipboardList size="36" stroke="3"/>-->
                     {:else}
-                        <button type="button" onclick={() => onCompletion(numStrokes)}>
+                        <button type="button" onclick={() => onCompletion()}>
                             <IconArrowBigRight stroke="4" />
                         </button>
                     {/if}

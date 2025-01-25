@@ -1,9 +1,10 @@
 <script lang="ts">
 
     import {type Course, Direction, getCellData, moveInDirection, type Position} from "./course";
-    import {ClubType, getClubData, type Player} from "./player";
+    import {ClubType, getClubData} from "./club";
     import Cell from "./Cell.svelte";
     import {timeout} from "./utilities";
+    import type {Player} from "./player";
 
     export let course: Course;
     export let ballPos: Position|null = null;
@@ -118,13 +119,13 @@
         };
         let axis = computeRotationAxis(direction);
         let animation = [
-            {transform: `rotate3d(${axis[0]}, ${axis[1]}, 0, 0deg)`, easing: 'cubic-bezier(0, 0.2, 0, 1)'},
-            {transform: `rotate3d(${axis[0]}, ${axis[1]}, 0, ${360*4}deg)`},
+            {transform: `rotate3d(${axis[0]}, ${-axis[1]}, 0, 0deg)`, easing: 'cubic-bezier(0, 0.2, 0, 1)'},
+            {transform: `rotate3d(${axis[0]}, ${-axis[1]}, 0, ${360*4}deg)`},
         ];
         let glowAnimation = [
-            {boxShadow: '0 0 20px 10px hsla(240, 40%, 60%, 0%)', easing: 'ease-out'},
-            {boxShadow: '0 0 20px 10px hsla(240, 40%, 60%, 100%)', easing: 'ease-in', offset: 0.02},
-            {boxShadow: '0 0 20px 10px hsla(240, 40%, 60%, 0%)', offset: 0.6},
+            {boxShadow: '0 0 20px 10px hsla(210, 50%, 60%, 0%)', easing: 'ease-out'},
+            {boxShadow: '0 0 20px 10px hsla(210, 50%, 60%, 100%)', easing: 'ease-in', offset: 0.02},
+            {boxShadow: '0 0 20px 10px hsla(210, 50%, 60%, 0%)', offset: 0.6},
         ];
         let timings = {
             duration: 1000,

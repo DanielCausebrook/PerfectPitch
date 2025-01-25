@@ -3,7 +3,7 @@
     import {MersenneTwister19937} from "random-js";
     import {Course} from "../course";
     import {Player} from "../player";
-    import Hole from "../Hole.svelte";
+    import Round from "../Round.svelte";
 
     let now = new Date();
 
@@ -12,59 +12,59 @@
     let nextSeed: number|null = null;
 
     let course: Course|null;
-    let player: Player|null;
-    let scoreboard: number[] = [];
+
+
+    let player: Player = new Player([0, 0], 4);
 
     function randomiseSeed() {
         seedInput = MersenneTwister19937.autoSeed().next();
     }
 
-    function generateRound(seed: number) {
+    function beginRound(seed: number) {
         let rng = MersenneTwister19937.seed(seed);
         currentSeed = seed;
         nextSeed = rng.next();
         let maybeCourse: Course|null = null;
-        let maybePlayer: Player|null = null;
-        while (maybeCourse === null || maybePlayer === null) {
+        while (maybeCourse === null) {
             maybeCourse = Course.generate(20, 20, MersenneTwister19937.seed(rng.next()));
-            maybePlayer = maybeCourse?.createPlayer(MersenneTwister19937.seed(rng.next())) ?? null;
         }
         course = maybeCourse;
-        player = maybePlayer;
+        player.position = course.tee();
     }
 
-    generateRound(seedInput);
+    beginRound(seedInput);
 
-    function newRound() {
-        scoreboard = [];
-        generateRound(seedInput);
+    function newGame() {
+        player.newGame();
+        beginRound(seedInput);
     }
 
-    function nextRound(score: number) {
-        scoreboard.push(score);
-        generateRound(nextSeed ?? MersenneTwister19937.autoSeed().next());
+    function nextRound() {
+        player.newRound();
+        beginRound(nextSeed ?? MersenneTwister19937.autoSeed().next());
     }
 
 </script>
+
 <div class="wrapper">
     <header>
         <div>
             <span>Puttarium</span>
             <div class="new-round">
                 <input type="text" onfocus={e => e.currentTarget.select()} onkeydown={e => {if (e.key === "Escape" && currentSeed !== null) {seedInput = currentSeed; e.currentTarget.blur();}}} bind:value={seedInput} size="12" />
-                <button type="button" onclick={() => newRound()}>
+                <button type="button" onclick={() => newGame()}>
                     <IconSeedling size="16" stroke="3"/>
                 </button>
-                <button type="button" onclick={() => {randomiseSeed(); newRound();}}>
+                <button type="button" onclick={() => {randomiseSeed(); newGame();}}>
                     <IconDice3Filled size="16" stroke="3" />
                 </button>
             </div>
         </div>
     </header>
     <main>
-        {#if course !== null && player !== null}
+        {#if course !== null}
             {#key course}
-                <Hole course={course} player={player} scoreboard={scoreboard} onCompletion={nextRound} />
+                <Round course={course} player={player} onCompletion={nextRound} />
             {/key}
         {/if}
     </main>

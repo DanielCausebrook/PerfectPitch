@@ -1,5 +1,5 @@
 <script lang="ts">
-    import {ClubData, type ClubType, getClubData} from "./player";
+    import {ClubData, type ClubType, getClubData} from "./club";
     import Dice from "./Dice.svelte";
     import Cell from "./Cell.svelte";
     import {

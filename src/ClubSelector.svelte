@@ -4,7 +4,7 @@
         IconChevronCompactDown, IconCone,
         IconDiamonds, IconPoint,
     } from "@tabler/icons-svelte";
-    import {getClubData, ClubType} from "./player";
+    import {getClubData, ClubType} from "./club";
     import type {CellType} from "./course";
 
     export let hoveredClub: ClubType|null = null;

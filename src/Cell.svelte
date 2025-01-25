@@ -6,7 +6,7 @@
         IconGolf,
         IconGrain,
         IconInnerShadowTopLeftFilled,
-        IconRipple, IconSquareFilled
+        IconRipple, IconSquareFilled, IconSquareXFilled
     } from "@tabler/icons-svelte";
 
     export let cellType: CellType;
@@ -26,11 +26,11 @@
     {:else if cellType === CellType.Tree}
         <IconChristmasTreeFilled size={cellIconSize} color="hsl(120, 60%, 10%)" />
     {:else if cellType === CellType.Rock}
-        <IconSquareFilled size={cellIconSize} color="hsl(0, 0%, 35%)" stroke="3" />
+        <IconSquareXFilled size={cellIconSize} color="hsl(0, 0%, 37%)" stroke="3" />
     {:else if cellType === CellType.Hole}
         <IconGolf size={cellIconSize + 2} stroke="3" color="hsl(180, 80%, 70%)" />
     {:else if cellType === CellType.Water}
-        <IconRipple size={cellIconSize} color="hsl(240, 40%, 40%)" />
+        <IconRipple size={cellIconSize} color="hsl(210, 50%, 45%)" />
     {:else if cellType === CellType.Sand}
         <IconGrain size={cellIconSize} color="hsl(55, 50%, 50%)"/>
     {/if}

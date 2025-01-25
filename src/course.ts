@@ -1,5 +1,4 @@
 import {createNoise2D} from "simplex-noise";
-import {Player} from "./player";
 import {type Engine, MersenneTwister19937, pick, real} from "random-js";
 import {SoundEffect} from "./soundEffect";
 
@@ -25,8 +24,8 @@ export function getCellData(cellType: CellType): CellData {
     switch (cellType) {
         case CellType.Fairway: return new CellData('hsl(90, 60%, 40%)', CellBlockType.None, false, 0, 1);
         case CellType.Rough: return new CellData('hsl(100, 60%, 35%)', CellBlockType.None, false, 0, 0);
-        case CellType.Water: return new CellData('hsl(240, 40%, 60%)', CellBlockType.None, true, 0, 0).setSoundEffect(SoundEffect.water);
-        case CellType.Sand: return new CellData('hsl(55, 50%, 60%)', CellBlockType.None, false, -1, 0).setSoundEffect(SoundEffect.bunker);
+        case CellType.Water: return new CellData('hsl(210, 50%, 60%)', CellBlockType.None, true, 0, 0).setSoundEffect(SoundEffect.water);
+        case CellType.Sand: return new CellData('hsl(55, 50%, 50%)', CellBlockType.None, false, -1, 0).setSoundEffect(SoundEffect.bunker);
         case CellType.Tree: return new CellData('hsl(120, 20%, 35%)', CellBlockType.Stick, false, 0, 0).setSoundEffect(SoundEffect.tree);
         case CellType.Rock: return new CellData('hsl(120, 0%, 30%)', CellBlockType.Block, false, 0, 0);
         case CellType.Hole: return new CellData('hsl(170, 60%, 45%)', CellBlockType.None, false, 0, 0);
@@ -71,22 +70,39 @@ export class Course {
     #width: number;
     #layout: CellType[][];
     #holePos: Position;
+    #teePos: Position;
 
-    constructor(height: number, width: number, layout: CellType[][], holePos: Position) {
+    constructor(height: number, width: number, layout: CellType[][], holePos: Position, teePos: Position) {
         this.#height = height;
         this.#width = width;
         this.#layout = layout;
         this.#holePos = holePos;
+        this.#teePos = teePos;
     }
 
     static generate(width: number, height: number, rng: Engine): Course|null {
-        let terrainRng = MersenneTwister19937.seed(rng.next());
+        let terrain = this.#generateTerrain(width, height, MersenneTwister19937.seed(rng.next()));
+        let holePos = this.#generateHolePos(width, height, terrain, MersenneTwister19937.seed(rng.next()));
+        if (holePos === null) {
+            return null;
+        }
+        terrain[holePos[0]][holePos[1]] = CellType.Hole;
+
+        let teePos = this.#generateTeePos(width, height, terrain, holePos, MersenneTwister19937.seed(rng.next()));
+        if (teePos === null) {
+            return null;
+        }
+
+        return new Course(height, width, terrain, holePos, teePos);
+    }
+
+    static #generateTerrain(width: number, height: number, rng: Engine): CellType[][] {
         function genSimple(scale: number, threshold: number): (pos: Position) => boolean {
-            const noise = createNoise2D(() => real(0, 1)(terrainRng));
+            const noise = createNoise2D(() => real(0, 1)(rng));
             return (pos: Position) => noise(pos[0]/scale, pos[1]/scale) >= threshold
         }
         // const waterNoise = genSimple(10, 0.45);
-        const waterNoise2D = createNoise2D(() => real(0, 1)(terrainRng));
+        const waterNoise2D = createNoise2D(() => real(0, 1)(rng));
         const waterNoise = (pos: Position) => {
             let edgeProximity = 0;
             if (pos[0] <= 2) {
@@ -127,13 +143,17 @@ export class Course {
                 default: return CellType.Rough;
             }
         };
-        let layout = Array(width);
+        let terrain = Array(width);
         for (let x = 0; x < width; x++) {
-            layout[x] = Array(height);
+            terrain[x] = Array(height);
             for (let y = 0; y < height; y++) {
-                layout[x][y] = getCell([x, y]);
+                terrain[x][y] = getCell([x, y]);
             }
         }
+        return terrain;
+    }
+
+    static #generateHolePos(width: number, height: number, terrain: CellType[][], rng: Engine): Position|null {
         let fairwayDensity = Array(width * height).fill(0);
         const incrementIfExists = (x: number, y: number) => {
             if (x >= 0 && y >= 0 && x < width && y < height) {
@@ -142,7 +162,7 @@ export class Course {
         }
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
-                if (layout[x][y] == CellType.Fairway) {
+                if (terrain[x][y] == CellType.Fairway) {
                     incrementIfExists(x-1, y-1);
                     incrementIfExists(x-1, y);
                     incrementIfExists(x-1, y+1);
@@ -171,18 +191,16 @@ export class Course {
         if (maxAt.length === 0) {
             return null;
         }
-        let holePos = pick(rng, maxAt);
-        layout[holePos[0]][holePos[1]] = CellType.Hole;
-        return new Course(height, width, layout, holePos);
+        return pick(rng, maxAt);
     }
 
-    createPlayer(rng: Engine): Player|null {
+    static #generateTeePos(width: number, height: number, terrain: CellType[][], holePos: Position, rng: Engine): Position|null {
         let fairwayPositions: Position[] = [];
-        for (let x = 0; x < this.#width; x++) {
-            for (let y = 0; y < this.#height; y++) {
-                const distanceFromHole = Math.max(Math.abs(this.#holePos[0] - x), Math.abs(this.#holePos[1] - y));
-                const minDist = Math.max(this.#width, this.#height) / 3;
-                if (this.cell([x, y]) === CellType.Fairway && distanceFromHole > minDist) {
+        for (let x = 0; x < width; x++) {
+            for (let y = 0; y < height; y++) {
+                const distanceFromHole = Math.max(Math.abs(holePos[0] - x), Math.abs(holePos[1] - y));
+                const minDist = Math.max(width, height) / 3;
+                if (terrain[x][y] === CellType.Fairway && distanceFromHole > minDist) {
                     fairwayPositions.push([x, y]);
                 }
             }
@@ -190,8 +208,7 @@ export class Course {
         if (fairwayPositions.length === 0) {
             return null;
         }
-        let pos = pick(rng, fairwayPositions);
-        return new Player(pos);
+        return pick(rng, fairwayPositions);
     }
 
     height(): number {
@@ -204,6 +221,10 @@ export class Course {
 
     cell(position: Position): CellType {
         return this.#layout[position[0]][position[1]];
+    }
+
+    tee(): Position {
+        return this.#teePos;
     }
 
     isValidPosition(position: Position): boolean {
