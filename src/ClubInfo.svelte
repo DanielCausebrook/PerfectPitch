@@ -2,7 +2,7 @@
     import {ClubData, type ClubType, getClubData} from "./player";
     import Dice from "./Dice.svelte";
     import Cell from "./Cell.svelte";
-    import {IconBounceRightFilled} from "@tabler/icons-svelte";
+    import {IconBounceRightFilled, IconPlaneTilt} from "@tabler/icons-svelte";
 
     export let clubType: ClubType;
     let clubData: ClubData = getClubData(clubType);
@@ -19,6 +19,9 @@
         {/each}
         {#if clubData.allowsRolls()}
             <li><IconBounceRightFilled size={22} /></li>
+        {/if}
+        {#if clubData.noStick()}
+            <li><IconPlaneTilt size={22} /></li>
         {/if}
     </ul>
 

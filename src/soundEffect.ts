@@ -11,23 +11,24 @@ import tree from '$lib/licensed/sports golfing golf ball hit tree then ground 03
 import hole from '$lib/licensed/sports golfing golf ball drops falls in hole 01.wav';
 
 export class SoundEffect {
-    static putter = new SoundEffect(putter2);
-    static iron = new SoundEffect(iron, 70);
-    static driver = new SoundEffect(driver, 220);
-    static wedge = new SoundEffect(wedge);
-    static sandWedge = new SoundEffect(sandWedge);
-    static bunker = new SoundEffect(bunker);
-    static water = new SoundEffect(water);
-    static tree = new SoundEffect(tree);
-    static hole = new SoundEffect(hole);
+    static putter = new SoundEffect(putter2, 1);
+    static iron = new SoundEffect(iron, 0.7, 70);
+    static driver = new SoundEffect(driver, 0.9, 200);
+    static wedge = new SoundEffect(wedge, 0.4);
+    static sandWedge = new SoundEffect(sandWedge, 0.6);
+    static bunker = new SoundEffect(bunker, 0.5);
+    static water = new SoundEffect(water, 0.7);
+    static tree = new SoundEffect(tree, 0.3);
+    static hole = new SoundEffect(hole, 0.6);
 
     audio: HTMLAudioElement|null = null;
     startAtMs: number = 0;
 
-    constructor(url: string, startAtMs?: number) {
+    constructor(url: string, volume: number, startAtMs?: number) {
         this.startAtMs = startAtMs ?? 0;
         if (browser) {
             this.audio = new Audio(url);
+            this.audio.volume = volume;
         }
     }
 
