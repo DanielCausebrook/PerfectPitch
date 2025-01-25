@@ -14,7 +14,7 @@
     let currentRoundSeed: number|null = null;
     let nextRoundSeed: number|null = null;
 
-    let seedStringInput: string;
+    let seedStringInput: string = '';
 
     let course: Course|null;
     let player: Player = new Player([0, 0], 4);
@@ -63,10 +63,12 @@
         <div>
             <span>Puttarium</span>
             <div class="new-round">
-                <input type="text" onfocus={e => e.currentTarget.select()} onkeydown={e => {if (e.key === "Enter") { seedGame(); }}} bind:value={seedStringInput} size="12" />
-                <button type="button" onclick={seedGame}>
-                    <IconSeedling size="16" stroke="3"/>
-                </button>
+                <form class="seed-input" onsubmit={seedGame}>
+                    <input type="text" onfocus={e => e.currentTarget.select()} bind:value={seedStringInput} size="12" />
+                    <button type="submit" onclick={seedGame} disabled={seedStringInput === ''}>
+                        <IconSeedling size="16" stroke="3"/>
+                    </button>
+                </form>
                 <button type="button" onclick={randomGame}>
                     <IconDice3Filled size="16" stroke="3" />
                 </button>
@@ -116,23 +118,43 @@
                     display: flex;
                     flex-flow: row nowrap;
                     align-items: center;
-                    gap: 3px;
-                    > button {
+                    gap: 5px;
+
+                    button {
                         display: flex;
                         place-items: center;
                         padding: 5px 10px;
                         background: hsl(0, 0%, 12%);
                         color: hsl(0, 0%, 80%);
-                        border-radius: 2px;
+                        border-radius: 0 2px 2px 0;
+
+                        &[disabled] {
+                            color: hsl(0, 0%, 45%);
+                            cursor: default;
+                        }
                     }
-                    > input {
-                        background: hsl(0, 0%, 20%);
-                        border: none;
-                        padding: 5px 10px;
+                    > .seed-input {
+                        display: flex;
+                        flex-flow: row nowrap;
                         border-radius: 2px;
-                        color: hsl(0, 0%, 80%);
-                        font-family: inherit;
-                        font-weight: inherit;
+                        outline: 1px solid transparent;
+                        transition: outline-color 0.25s;
+
+                        &:focus-within {
+                            outline-color: hsl(0, 0%, 50%);
+                        }
+                        > input {
+                            background: hsl(0, 0%, 20%);
+                            border: none;
+                            padding: 5px 10px;
+                            border-radius: 2px 0 0 2px;
+                            color: hsl(0, 0%, 80%);
+                            font-family: inherit;
+                            font-weight: inherit;
+                            &:focus {
+                                outline: none;
+                            }
+                        }
                     }
                 }
             }
