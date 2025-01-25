@@ -25,7 +25,7 @@ export function getCellData(cellType: CellType): CellData {
         case CellType.Fairway: return new CellData('hsl(90, 60%, 40%)', CellBlockType.None, false, 0, 1);
         case CellType.Rough: return new CellData('hsl(100, 60%, 35%)', CellBlockType.None, false, 0, 0);
         case CellType.Water: return new CellData('hsl(210, 50%, 60%)', CellBlockType.None, true, 0, 0).setSoundEffect(SoundEffect.water);
-        case CellType.Sand: return new CellData('hsl(55, 50%, 50%)', CellBlockType.None, false, -1, 0).setSoundEffect(SoundEffect.bunker);
+        case CellType.Sand: return new CellData('hsl(55, 50%, 60%)', CellBlockType.None, false, -1, 0).setSoundEffect(SoundEffect.bunker);
         case CellType.Tree: return new CellData('hsl(120, 20%, 35%)', CellBlockType.Stick, false, 0, 0).setSoundEffect(SoundEffect.tree);
         case CellType.Rock: return new CellData('hsl(120, 0%, 30%)', CellBlockType.Block, false, 0, 0);
         case CellType.Hole: return new CellData('hsl(170, 60%, 45%)', CellBlockType.None, false, 0, 0);
