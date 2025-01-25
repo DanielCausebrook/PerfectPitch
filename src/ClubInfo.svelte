@@ -4,7 +4,7 @@
     import Cell from "./Cell.svelte";
     import {
         IconBounceRightFilled,
-        IconPlaneTilt, IconSquareRoundedMinusFilled, IconSquareRoundedPlusFilled
+        IconPlaneTilt,
     } from "@tabler/icons-svelte";
     import {CellData, type CellType, getCellData} from "./course";
 
@@ -16,15 +16,11 @@
 <article>
     <ul class="dice-faces">
         {#each clubData.diceFaces() as face}
-            <li><Dice value={face} filled={false} size="26" stroke="2" color={face < 5 ? 'white' : 'hsl(20, 80%, 75%)'}></Dice></li>
+            <li><Dice value={face} filled={false} size="36" stroke="2" color={face < 5 ? 'white' : 'hsl(20, 80%, 75%)'}></Dice></li>
         {/each}
         {#if !clubData.noShotModifier() && cellData.shotModifier !== 0}
-            <li class="shot-modifier">
-                {#if cellData.shotModifier > 0}
-                    <IconSquareRoundedPlusFilled size={26} style="color:{cellData.primaryColor};" />
-                {:else}
-                    <IconSquareRoundedMinusFilled size={26} style="color:{cellData.primaryColor};" />
-                {/if}
+            <li class="shot-modifier" style="color:{cellData.primaryColor}">
+                {cellData.shotModifier}
             </li>
         {/if}
     </ul>
@@ -44,9 +40,9 @@
 <style>
     article {
         display: flex;
-        flex-flow: column nowrap;
-        align-items: stretch;
-        justify-content: center;
+        flex-flow: row nowrap;
+        align-items: center;
+        justify-content: space-between;
         padding: 0 10px;
 
         > ul {
@@ -60,17 +56,17 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                width: 26px;
-                height: 26px;
                 &.shot-modifier {
                     display: flex;
                     align-items: center;
                     justify-content: center;
+                    padding: 0 5px;
+                    font-size: 22pt;
                 }
             }
         }
         > .dice-faces {
-            border-bottom: 1px solid white;
+            /*border-bottom: 1px solid white;*/
         }
         > .terrain {
         }
