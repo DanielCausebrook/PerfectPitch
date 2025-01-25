@@ -1,4 +1,4 @@
-import {CellType} from "./course";
+import {CellType, type Position} from "./course";
 import {SoundEffect} from "./soundEffect";
 
 export enum ClubType {
@@ -64,10 +64,10 @@ export function getClubData(clubType: ClubType) {
 }
 
 export class Player {
-    position: [number, number];
+    position: Position;
     #strokesTaken: number = 0;
 
-    constructor(position: [number, number]) {
+    constructor(position: Position) {
         this.position = position;
     }
 }

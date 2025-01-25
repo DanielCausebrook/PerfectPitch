@@ -1,5 +1,14 @@
 <script lang="ts">
-    import {CellBlockType, CellType, Course, Direction, getCellData, moveInDirection, rotateDirection} from "./course";
+    import {
+        CellBlockType,
+        CellType,
+        Course,
+        Direction,
+        getCellData,
+        moveInDirection,
+        type Position,
+        rotateDirection
+    } from "./course";
     import CourseView from "./CourseView.svelte";
     import ClubSelector from "./ClubSelector.svelte";
     import DiceRoller from "./DiceRoller.svelte";
@@ -28,8 +37,8 @@
     let stopDiceAnimation: () => void;
 
     let selectDirection: (player: Player) => Promise<Direction>;
-    let sinkAnimation: (pos: [number, number]) => void;
-    let splashAnimation: (pos: [number, number], direction: Direction) => Promise<void>;
+    let sinkAnimation: (pos: Position) => void;
+    let splashAnimation: (pos: Position, direction: Direction) => Promise<void>;
 
     let win: boolean = false;
     let diceFaces: number[]|null = null;

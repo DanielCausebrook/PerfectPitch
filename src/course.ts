@@ -3,6 +3,8 @@ import {Player} from "./player";
 import {type Engine, MersenneTwister19937, pick, real} from "random-js";
 import {SoundEffect} from "./soundEffect";
 
+export type Position = [number, number];
+
 export enum CellType {
     Hole,
     Fairway,
@@ -68,9 +70,9 @@ export class Course {
     #height: number;
     #width: number;
     #layout: CellType[][];
-    #holePos: [number, number];
+    #holePos: Position;
 
-    constructor(height: number, width: number, layout: CellType[][], holePos: [number, number]) {
+    constructor(height: number, width: number, layout: CellType[][], holePos: Position) {
         this.#height = height;
         this.#width = width;
         this.#layout = layout;
@@ -79,13 +81,13 @@ export class Course {
 
     static generate(width: number, height: number, rng: Engine): Course|null {
         let terrainRng = MersenneTwister19937.seed(rng.next());
-        function genSimple(scale: number, threshold: number): (pos: [number, number]) => boolean {
+        function genSimple(scale: number, threshold: number): (pos: Position) => boolean {
             const noise = createNoise2D(() => real(0, 1)(terrainRng));
-            return (pos: [number, number]) => noise(pos[0]/scale, pos[1]/scale) >= threshold
+            return (pos: Position) => noise(pos[0]/scale, pos[1]/scale) >= threshold
         }
         // const waterNoise = genSimple(10, 0.45);
         const waterNoise2D = createNoise2D(() => real(0, 1)(terrainRng));
-        const waterNoise = (pos: [number, number]) => {
+        const waterNoise = (pos: Position) => {
             let edgeProximity = 0;
             if (pos[0] <= 2) {
                 edgeProximity += Math.pow(3 - pos[0], 1.5);
@@ -111,7 +113,7 @@ export class Course {
         const sandNoise = genSimple(10, 0.7);
         const sandNoise2 = genSimple(10, 0.7);
 
-        const getCell = (position: [number, number]) => {
+        const getCell = (position: Position) => {
             switch (true) {
                 case waterNoise(position): return CellType.Water;
                 case rockNoise(position): return CellType.Rock;
@@ -153,7 +155,7 @@ export class Course {
                 }
             }
         }
-        let maxAt: [number, number][] = [];
+        let maxAt: Position[] = [];
         let max = 0;
         for (let x = 0; x < width; x++) {
             for (let y = 0; y < height; y++) {
@@ -175,7 +177,7 @@ export class Course {
     }
 
     createPlayer(rng: Engine): Player|null {
-        let fairwayPositions: [number, number][] = [];
+        let fairwayPositions: Position[] = [];
         for (let x = 0; x < this.#width; x++) {
             for (let y = 0; y < this.#height; y++) {
                 const distanceFromHole = Math.max(Math.abs(this.#holePos[0] - x), Math.abs(this.#holePos[1] - y));
@@ -200,18 +202,18 @@ export class Course {
         return this.#width;
     }
 
-    cell(position: [number, number]): CellType {
+    cell(position: Position): CellType {
         return this.#layout[position[0]][position[1]];
     }
 
-    isValidPosition(position: [number, number]): boolean {
+    isValidPosition(position: Position): boolean {
         const x = position[0];
         const y = position[1];
         return x >= 0 && y >= 0 && x < this.#width && y < this.#height;
     }
 }
 
-export function moveInDirection(position: [number, number], direction: Direction): [number, number] {
+export function moveInDirection(position: Position, direction: Direction): Position {
     switch (direction) {
         case Direction.N: return [position[0], position[1] + 1];
         case Direction.NE: return [position[0] + 1, position[1] + 1];

@@ -1,12 +1,12 @@
 <script lang="ts">
 
-    import {type Course, Direction, getCellData, moveInDirection} from "./course";
+    import {type Course, Direction, getCellData, moveInDirection, type Position} from "./course";
     import {ClubType, getClubData, type Player} from "./player";
     import Cell from "./Cell.svelte";
     import {timeout} from "./utilities";
 
     export let course: Course;
-    export let ballPos: [number, number]|null = null;
+    export let ballPos: Position|null = null;
     export let selectedClub: ClubType|null;
 
     function createEmptyCellButtons() {
@@ -39,7 +39,7 @@
         });
     };
 
-    function registerCell(element: HTMLElement, data: [number, number]) {
+    function registerCell(element: HTMLElement, data: Position) {
         if (cellElements[data[0]] === undefined) {
             cellElements[data[0]] = Array(course.width());
         }
@@ -61,7 +61,7 @@
         }
     }
 
-    export const sinkAnimation = (center: [number, number]) => {
+    export const sinkAnimation = (center: Position) => {
         const duration = 5000;
         for (let x = 0; x < course.width(); x++) {
             for (let y = 0; y < course.height(); y++) {
@@ -103,7 +103,7 @@
         }
     }
 
-    export const splashAnimation = (center: [number, number], direction: Direction): Promise<void> => {
+    export const splashAnimation = (center: Position, direction: Direction): Promise<void> => {
         const computeRotationAxis = (direction: Direction) => {
             switch (direction) {
                 case Direction.N: return [1, 0];
