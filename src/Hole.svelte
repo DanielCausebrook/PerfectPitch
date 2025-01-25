@@ -7,7 +7,7 @@
     import {onMount} from "svelte";
     import {timeout} from "./utilities";
     import ClubInfo from "./ClubInfo.svelte";
-    import {IconArrowBigRight, IconClipboardList} from "@tabler/icons-svelte";
+    import {IconArrowBigRight} from "@tabler/icons-svelte";
     import {nativeMath, pick} from "random-js";
     import {SoundEffect} from "./soundEffect";
 
@@ -59,7 +59,11 @@
         let distanceBounced = 0;
 
         let startingPosition = player.position;
-        let movementRemaining: number = diceRoll + getCellData(course.cell(startingPosition)).shotModifier;
+        let movementRemaining: number = diceRoll;
+        if (!clubData.noShotModifier()) {
+            movementRemaining += getCellData(course.cell(startingPosition)).shotModifier;
+        }
+
         while (movementRemaining > 0) {
             movementRemaining--;
             let adjustedDirection = direction;
@@ -136,7 +140,7 @@
         </div>
     </div>
     <div class="course">
-        <CourseView course={course} ballPos={showBall ? player.position : null} bind:selectDirection={selectDirection} bind:sinkAnimation={sinkAnimation} bind:splashAnimation={splashAnimation} />
+        <CourseView course={course} ballPos={showBall ? player.position : null} bind:selectedClub={selectedClub} bind:selectDirection={selectDirection} bind:sinkAnimation={sinkAnimation} bind:splashAnimation={splashAnimation} />
     </div>
     <div class="status">
         <div class="dice-roll">
@@ -155,9 +159,9 @@
                     {/if}
                 </div>
             {:else if hoveredClub !== null}
-                <ClubInfo clubType={hoveredClub} />
+                <ClubInfo clubType={hoveredClub} cellType={course.cell(player.position)} />
             {:else if selectedClub !== null}
-                <ClubInfo clubType={selectedClub} />
+                <ClubInfo clubType={selectedClub} cellType={course.cell(player.position)} />
             {/if}
         </div>
     </div>

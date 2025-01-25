@@ -12,14 +12,16 @@ export class ClubData {
     #diceFaces: number[];
     #bounces: boolean;
     #noStick: boolean;
+    #noShotModifier: boolean;
     #canUseOn: CellType[];
     #defaultSoundEffect: SoundEffect;
     #soundEffectOverrides: Map<CellType, SoundEffect> = new Map();
 
-    constructor(diceFaces: number[], bounces: boolean, noStick:boolean, canUseOn: CellType[], defaultSoundEffect: SoundEffect) {
+    constructor(diceFaces: number[], bounces: boolean, noStick:boolean, noShotModifier: boolean, canUseOn: CellType[], defaultSoundEffect: SoundEffect) {
         this.#diceFaces = diceFaces;
         this.#bounces = bounces;
         this.#noStick = noStick;
+        this.#noShotModifier = noShotModifier;
         this.#canUseOn = canUseOn;
         this.#defaultSoundEffect = defaultSoundEffect;
     }
@@ -32,6 +34,9 @@ export class ClubData {
     }
     noStick(): boolean {
         return this.#noStick;
+    }
+    noShotModifier(): boolean {
+        return this.#noShotModifier;
     }
     cellTypes(): CellType[] {
         return this.#canUseOn;
@@ -50,10 +55,10 @@ export class ClubData {
 
 export function getClubData(clubType: ClubType) {
     switch (clubType) {
-        case ClubType.Putter: return new ClubData([1, 1, 1, 1, 2], false, false, [CellType.Fairway], SoundEffect.putter);
-        case ClubType.Iron: return new ClubData([1, 2, 3, 3, 4], true, false, [CellType.Fairway, CellType.Rough, CellType.Tree], SoundEffect.iron);
-        case ClubType.Driver: return new ClubData([3, 4, 5, 6], true, false, [CellType.Fairway, CellType.Rough], SoundEffect.driver);
-        case ClubType.Wedge: return new ClubData([1, 2, 2, 2, 3], false, true, [CellType.Fairway, CellType.Rough, CellType.Tree, CellType.Sand], SoundEffect.wedge)
+        case ClubType.Putter: return new ClubData([1, 1, 1, 1, 2], false, false, true, [CellType.Fairway], SoundEffect.putter);
+        case ClubType.Iron: return new ClubData([1, 2, 3, 3, 4], true, false, false, [CellType.Fairway, CellType.Rough, CellType.Tree], SoundEffect.iron);
+        case ClubType.Driver: return new ClubData([3, 4, 5, 6], true, false, false, [CellType.Fairway, CellType.Rough], SoundEffect.driver);
+        case ClubType.Wedge: return new ClubData([1, 2, 2, 2, 3], false, true, false, [CellType.Fairway, CellType.Rough, CellType.Tree, CellType.Sand], SoundEffect.wedge)
             .overrideSoundEffect(CellType.Sand, SoundEffect.sandWedge);
     }
 }

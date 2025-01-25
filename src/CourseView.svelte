@@ -1,12 +1,13 @@
 <script lang="ts">
 
-    import {type Course, Direction, moveInDirection} from "./course";
-    import type {Player} from "./player";
+    import {type Course, Direction, getCellData, moveInDirection} from "./course";
+    import {ClubType, getClubData, type Player} from "./player";
     import Cell from "./Cell.svelte";
     import {timeout} from "./utilities";
 
     export let course: Course;
     export let ballPos: [number, number]|null = null;
+    export let selectedClub: ClubType|null;
 
     function createEmptyCellButtons() {
         let arr = [];
@@ -17,9 +18,11 @@
     }
 
     let cellButtons: ({listener: () => void, direction: Direction}|null)[][] = createEmptyCellButtons();
+    let shotModifier: number = 0;
     let cellElements: HTMLElement[][] = Array(course.width()).map(() => Array(course.height()));
 
-    export const selectDirection: (player: Player) => Promise<Direction> = player => {
+    export const selectDirection = (player: Player): Promise<Direction> => {
+        shotModifier = (selectedClub !== null && getClubData(selectedClub).noShotModifier()) ? 0 : getCellData(course.cell(player.position)).shotModifier;
         return new Promise(resolve => {
             for (const direction of [Direction.N, Direction.NE, Direction.E, Direction.SE, Direction.S, Direction.SW, Direction.W, Direction.NW]) {
                 let position = moveInDirection(player.position, direction);
@@ -55,86 +58,6 @@
             case Direction.W: return p+'w';
             case Direction.NW: return p+'nw';
             case undefined: return null;
-        }
-    }
-
-    function wobbleCircle(center: [number, number]) {
-        for (let x = 0; x < course.width(); x++) {
-            for (let y = 0; y < course.height(); y++) {
-                if (x === center[0] && y === center[1]) {
-                    let glowAnimation = [
-                        {boxShadow: '0 0 40px 10px hsla(180, 0%, 60%, 0%)', easing: 'ease-out'},
-                        {boxShadow: '0 0 40px 10px hsla(180, 0%, 60%, 100%)', easing: 'ease-in', offset: 0.02},
-                        {boxShadow: '0 0 40px 10px hsla(180, 0%, 60%, 0%)'},
-                    ];
-
-                    cellElements[x][y].animate(glowAnimation, {
-                        duration: 5000,
-                        iterations: Infinity,
-                    })
-                    continue;
-                }
-                let radius = [center[0] - x, center[1] - y];
-                let tangent = [radius[1], -radius[0]];
-                let distance = Math.hypot(...radius);
-
-                let energy = Math.pow((distance+0.2+Math.random())*0.01, -0.8);
-                let spin = 180 * energy;
-                let spinAdjustment = ((spin+180) % 360) - 180;
-                let end = spin - spinAdjustment;
-                let adjustmentAmount = (end===0 ? 0 : spinAdjustment/end);
-                let length = 0.9;
-                let startOffset = Math.pow(distance*0.5, 1.3)/200;
-                let getOffset = (offset:number) => (offset * (1-startOffset) + startOffset) * length;
-                let animation = [
-                    {transform: `rotate3d(${tangent[0]}, ${tangent[1]}, 0, 0deg)`, easing: '', t: 0},
-                ];
-                let lastT = 0;
-                const inertia = 1;
-                const energyRatio = 0.75;
-                const logEnergyRatio = Math.log(energyRatio);
-                const manualAt = 2;
-                while(energy > 0.25) {
-                    let numSpins: number;
-                    if (energy > manualAt) {
-                        // w(t) = sqrt(2e(t)/I)
-                        // e(t) = sE*r^t
-                        // w(t) = sqrt(2(sE*r^t)/I)
-                        // numRots(sT, eT) = S(t=sT, t=eT)w(t) = (2sqrt(2)*sqrt(sE/I)*r^(eT/2))/log(r) - (2sqrt(2)*sqrt(sE/I)*r^(sT/2))/log(r)
-                        // = -( 2sqrt(2)*sqrt(sE/I)*(r^(eT/2)-1) ) / log(r)
-                        // eE = sE*r^eT
-                        // eT = log(eE/sE)/log(r)
-                        let duration = Math.log(manualAt/energy)/logEnergyRatio;
-                        numSpins = -(2*Math.SQRT2*Math.sqrt(energy/inertia)*(Math.pow(energyRatio, duration/2)-1)) / logEnergyRatio;
-                        numSpins = Math.ceil(numSpins);
-                    } else {
-                        numSpins = 1;
-                    }
-                    // -Sqrt[2] r^(x/2) Sqrt[sE/I]
-                    let duration = -Math.SQRT2 * Math.pow(energyRatio, numSpins/2) * Math.sqrt(energy/inertia)
-                    energy = energy * Math.pow(energyRatio, duration);
-                    lastT = lastT + duration;
-                    animation.push(
-                        {transform: `rotate3d(${tangent[0]}, ${tangent[1]}, 0, ${numSpins*360}deg)`, easing: `cubic-bezier(0, 1, 0.6, 1)`, t: lastT}
-                    );
-                }
-                animation.map((frame) => {return {transform: frame.transform, easing: frame.easing, offset: frame.t/lastT}});
-                let animationOld = [
-                    {transform: `rotate3d(${tangent[0]}, ${tangent[1]}, 0, 0deg)`},
-                    {transform: `rotate3d(${tangent[0]}, ${tangent[1]}, 0, 0deg)`, easing: `cubic-bezier(0, 1, 0.6, 1)`, offset: getOffset(0)},
-                    {transform: `rotate3d(${tangent[0]}, ${tangent[1]}, 0, ${end + spinAdjustment}deg)`, easing: `cubic-bezier(0.2, 0, 0.8, 1)`, offset: getOffset(0.05)},
-                    {transform: `rotate3d(${tangent[0]}, ${tangent[1]}, 0, ${end - spinAdjustment*0.25}deg)`, easing: `cubic-bezier(0.2, 0, 0.8, 1)`, offset: getOffset(0.25)},
-                    {transform: `rotate3d(${tangent[0]}, ${tangent[1]}, 0, ${end + spinAdjustment*0.06}deg)`, easing: `cubic-bezier(0.2, 0, 0.8, 1)`, offset: getOffset(0.45)},
-                    {transform: `rotate3d(${tangent[0]}, ${tangent[1]}, 0, ${end - spinAdjustment*0.03}deg)`, easing: `cubic-bezier(0.2, 0, 0.8, 1)`, offset: getOffset(0.65)},
-                    {transform: `rotate3d(${tangent[0]}, ${tangent[1]}, 0, ${end}deg)`, offset: length},
-                    {transform: `rotate3d(${tangent[0]}, ${tangent[1]}, 0, ${end}deg)`},
-                ];
-                const timing = {
-                    duration: lastT*1000,
-                    iterations: Infinity,
-                };
-                cellElements[x][y].animate(animation, timing);
-            }
         }
     }
 
@@ -211,8 +134,6 @@
         cellElements[center[0]][center[1]].animate(glowAnimation, timings);
         return timeout(1000);
     }
-
-    // onMount(() => {sinkAnimation(player.position);})
 </script>
 
 <div class="course">
@@ -232,7 +153,6 @@
         </div>
     {/each}
 </div>
-
 
 <style>
     .course {

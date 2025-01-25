@@ -1,5 +1,5 @@
 <script lang="ts">
-    import {CellType} from "./course";
+    import {CellType, getCellData} from "./course";
     import {
         IconBackground,
         IconChristmasTreeFilled,
@@ -15,20 +15,10 @@
     export let borderRadius: number = 3;
 
     let cellIconSize = size - 2;
+    let cellData = getCellData(cellType);
 
-    function cellTypeClass(cellType: CellType) {
-        switch (cellType) {
-            case CellType.Fairway: return 'cell-fairway';
-            case CellType.Rough: return 'cell-rough';
-            case CellType.Sand: return 'cell-sand';
-            case CellType.Water: return 'cell-water';
-            case CellType.Tree: return 'cell-tree';
-            case CellType.Rock: return 'cell-rock';
-            case CellType.Hole: return 'cell-hole';
-        }
-    }
 </script>
-<div class={['cell', cellTypeClass(cellType)]} style="width:{size}px; height:{size}px; border-radius:{borderRadius}px;">
+<div class="cell" style="width:{size}px; height:{size}px; background:{cellData.primaryColor}; border-radius:{borderRadius}px;">
     {#if hasBall}
         <IconInnerShadowTopLeftFilled size={cellIconSize} />
     {:else if cellType === CellType.Rough}
@@ -50,27 +40,5 @@
         display: flex;
         align-items: center;
         justify-content: center;
-
-        &.cell-fairway {
-            background: hsl(90, 60%, 40%);
-        }
-        &.cell-hole {
-            background: hsl(170, 60%, 45%);
-        }
-        &.cell-rough {
-            background: hsl(100, 60%, 35%);
-        }
-        &.cell-tree {
-            background: hsl(120, 20%, 35%);
-        }
-        &.cell-rock {
-            background: hsl(120, 0%, 30%);
-        }
-        &.cell-sand {
-            background: hsl(55, 50%, 60%);
-        }
-        &.cell-water {
-            background: hsl(240, 40%, 60%);
-        }
     }
 </style>

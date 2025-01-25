@@ -1,4 +1,4 @@
-import {createNoise2D, type NoiseFunction2D} from "simplex-noise";
+import {createNoise2D} from "simplex-noise";
 import {Player} from "./player";
 import {type Engine, MersenneTwister19937, pick, real} from "random-js";
 import {SoundEffect} from "./soundEffect";
@@ -21,24 +21,26 @@ export enum CellBlockType {
 
 export function getCellData(cellType: CellType): CellData {
     switch (cellType) {
-        case CellType.Fairway: return new CellData(CellBlockType.None, false, 0, 1);
-        case CellType.Rough: return new CellData(CellBlockType.None, false, 0, 0);
-        case CellType.Water: return new CellData(CellBlockType.None, true, 0, 0).setSoundEffect(SoundEffect.water);
-        case CellType.Sand: return new CellData(CellBlockType.None, false, -1, 0).setSoundEffect(SoundEffect.bunker);
-        case CellType.Tree: return new CellData(CellBlockType.Stick, false, 0, 0).setSoundEffect(SoundEffect.tree);
-        case CellType.Rock: return new CellData(CellBlockType.Block, false, 0, 0);
-        case CellType.Hole: return new CellData(CellBlockType.None, false, 0, 0);
+        case CellType.Fairway: return new CellData('hsl(90, 60%, 40%)', CellBlockType.None, false, 0, 1);
+        case CellType.Rough: return new CellData('hsl(100, 60%, 35%)', CellBlockType.None, false, 0, 0);
+        case CellType.Water: return new CellData('hsl(240, 40%, 60%)', CellBlockType.None, true, 0, 0).setSoundEffect(SoundEffect.water);
+        case CellType.Sand: return new CellData('hsl(55, 50%, 60%)', CellBlockType.None, false, -1, 0).setSoundEffect(SoundEffect.bunker);
+        case CellType.Tree: return new CellData('hsl(120, 20%, 35%)', CellBlockType.Stick, false, 0, 0).setSoundEffect(SoundEffect.tree);
+        case CellType.Rock: return new CellData('hsl(120, 0%, 30%)', CellBlockType.Block, false, 0, 0);
+        case CellType.Hole: return new CellData('hsl(170, 60%, 45%)', CellBlockType.None, false, 0, 0);
     }
 }
 
 export class CellData {
+    primaryColor: string;
     blockType: CellBlockType;
     outOfBounds: boolean;
     shotModifier: number;
     rollDistance: number;
     soundEffect: SoundEffect|null = null;
 
-    constructor(blockType: CellBlockType, outOfBounds: boolean, shotModifier: number, landingBonus: number) {
+    constructor(primaryColor:string, blockType: CellBlockType, outOfBounds: boolean, shotModifier: number, landingBonus: number) {
+        this.primaryColor = primaryColor;
         this.blockType = blockType;
         this.outOfBounds = outOfBounds;
         this.shotModifier = shotModifier;
@@ -211,14 +213,14 @@ export class Course {
 
 export function moveInDirection(position: [number, number], direction: Direction): [number, number] {
     switch (direction) {
-        case Direction.N: return [position[0], position[1] - 1];
-        case Direction.NE: return [position[0] + 1, position[1] - 1];
+        case Direction.N: return [position[0], position[1] + 1];
+        case Direction.NE: return [position[0] + 1, position[1] + 1];
         case Direction.E: return [position[0] + 1, position[1]];
-        case Direction.SE: return [position[0] + 1, position[1] + 1];
-        case Direction.S: return [position[0], position[1] + 1];
-        case Direction.SW: return [position[0] - 1, position[1] + 1];
+        case Direction.SE: return [position[0] + 1, position[1] - 1];
+        case Direction.S: return [position[0], position[1] - 1];
+        case Direction.SW: return [position[0] - 1, position[1] - 1];
         case Direction.W: return [position[0] - 1, position[1]];
-        case Direction.NW: return [position[0] - 1, position[1] - 1];
+        case Direction.NW: return [position[0] - 1, position[1] + 1];
     }
 }
 
