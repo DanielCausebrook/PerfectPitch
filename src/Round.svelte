@@ -202,7 +202,7 @@
                      justify-content: space-evenly;
                      > span {
                          font-size: 24pt;
-                         color: hsl(180, 80%, 80%);
+                         color: hsl(210, 80%, 80%);
                      }
                      > button {
                          display: flex;
@@ -212,7 +212,7 @@
                          gap: 10px;
                          position: relative;
                          padding: 8px 16px;
-                         background: hsl(240, 60%, 55%);
+                         background: hsl(210, 70%, 50%);
                          border-radius: 5px;
                      }
                  }
