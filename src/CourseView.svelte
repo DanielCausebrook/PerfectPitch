@@ -78,7 +78,7 @@
 
     export const winAnimation = (center: Position) => {
         const duration = 5000;
-        glow(center, 'hsl(170, 80%, 60%)', 40, duration);
+        playAnimation(center, CellAnimation.glow('hsl(170, 80%, 60%)', 40, duration));
         for (let x = 0; x < course.width(); x++) {
             for (let y = 0; y < course.height(); y++) {
                 if (x === center[0] && y === center[1]) {
