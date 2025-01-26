@@ -1,5 +1,6 @@
 <script lang="ts">
     import {
+        CellAnimation,
         CellBlockType,
         CellType,
         Course,
@@ -37,8 +38,24 @@
     let stopDiceAnimation: () => void;
 
     let selectDirection: (player: Player) => Promise<Direction>;
-    let sinkAnimation: (pos: Position) => void;
-    let splashAnimation: (pos: Position, direction: Direction) => Promise<void>;
+    let playAnimation: (pos: Position, animation: CellAnimation) => void;
+    let winAnimation: (pos: Position) => void;
+
+    function interactAnimation(pos: Position, color: string, intensity: number, direction: Direction): Promise<void> {
+        playAnimation(pos, CellAnimation.combine(
+            CellAnimation.wobble(direction, 75*intensity, 1000),
+            CellAnimation.glow(color, 15*intensity, 1000)
+        ));
+        return timeout(1000);
+    }
+    function sinkAnimation(pos: Position, color: string, direction: Direction): Promise<void> {
+        showBall = false;
+        playAnimation(pos, CellAnimation.combine(
+            CellAnimation.spin(direction, 1000),
+            CellAnimation.glow(color, 20, 1000)
+        ));
+        return timeout(1000).then(() => { showBall = true; });
+    }
 
     let win: boolean = false;
     let diceFaces: number[]|null = null;
@@ -81,7 +98,7 @@
             let newPosition = moveInDirection(player.position, adjustedDirection);
             distanceMoved++;
             if (!course.isValidPosition(newPosition)) {
-                await timeout(200);
+                if (distanceMoved === 1) await timeout(200);
                 distanceMoved--;
                 movementRemaining = 0;
                 break;
@@ -90,42 +107,56 @@
             let cell = course.cell(newPosition);
             let cellData = getCellData(cell);
             if (cellData.blockType === CellBlockType.Block) {
-                await timeout(200);
+                if (distanceMoved === 1) await timeout(200);
                 distanceMoved--;
+                if (movementRemaining > 0) {
+                    interactAnimation(newPosition, cellData.primaryColor, 1, rotateDirection(direction, 2));
+                    cellData.blockSoundEffect?.play();
+                }
                 movementRemaining = 0;
                 break;
             } else if (cellData.blockType === CellBlockType.Stick && !clubData.noStick()) {
-                await timeout(100);
+                player.position = newPosition;
+                await timeout(200);
+                if (movementRemaining > 0) {
+                    interactAnimation(newPosition, cellData.primaryColor, 1, rotateDirection(direction, 2));
+                    cellData.blockSoundEffect?.play();
+                }
                 movementRemaining = 0;
+                break;
             } else {
                 if (movementRemaining === 0 && distanceBounced < cellData.rollDistance && clubData.allowsRolls()) {
+                    interactAnimation(newPosition, cellData.primaryColor, 0.5, direction);
                     distanceBounced++;
                     movementRemaining++;
                 }
             }
             player.position = newPosition;
-            await timeout(500 - movementRemaining * 60);
+            if (movementRemaining === 0) {
+                await timeout(100);
+            } else {
+                await timeout(500 - movementRemaining * 60);
+            }
         }
         let cell = course.cell(player.position);
         let cellData = getCellData(cell);
         if (distanceMoved > 0) {
-            cellData.soundEffect?.play();
+            cellData.landSoundEffect?.play();
         }
         if (cellData.outOfBounds) {
-            showBall = false;
-            await splashAnimation(player.position, direction);
-            showBall = true;
+            await sinkAnimation(player.position, cellData.primaryColor, direction);
             player.position = startingPosition;
         } else if (cell === CellType.Hole) {
             win = true;
             SoundEffect.hole.play();
-            sinkAnimation(player.position);
+            winAnimation(player.position);
         }
     }
 
     onMount(async () => {
         while(!win) {
             await takeTurn();
+            await timeout(500);
         }
     })
 
@@ -148,7 +179,7 @@
         </div>
     </div>
     <div class="course">
-        <CourseView course={course} ballPos={showBall ? player.position : null} bind:selectedClub={selectedClub} bind:selectDirection={selectDirection} bind:sinkAnimation={sinkAnimation} bind:splashAnimation={splashAnimation} />
+        <CourseView course={course} ballPos={showBall ? player.position : null} bind:selectedClub={selectedClub} bind:selectDirection={selectDirection} bind:playAnimation={playAnimation} bind:winAnimation={winAnimation} />
     </div>
     <div class="status">
         <div class="dice-roll">

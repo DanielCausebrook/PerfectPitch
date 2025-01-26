@@ -1,6 +1,7 @@
 import {createNoise2D} from "simplex-noise";
 import {type Engine, MersenneTwister19937, pick, real} from "random-js";
 import {SoundEffect} from "./soundEffect";
+import {timeout} from "./utilities";
 
 export type Position = [number, number];
 
@@ -24,10 +25,14 @@ export function getCellData(cellType: CellType): CellData {
     switch (cellType) {
         case CellType.Fairway: return new CellData('hsl(90, 60%, 40%)', CellBlockType.None, false, 0, 1);
         case CellType.Rough: return new CellData('hsl(100, 60%, 35%)', CellBlockType.None, false, 0, 0);
-        case CellType.Water: return new CellData('hsl(210, 50%, 60%)', CellBlockType.None, true, 0, 0).setSoundEffect(SoundEffect.water);
-        case CellType.Sand: return new CellData('hsl(55, 50%, 60%)', CellBlockType.None, false, -1, 0).setSoundEffect(SoundEffect.bunker);
-        case CellType.Tree: return new CellData('hsl(120, 20%, 35%)', CellBlockType.Stick, false, 0, 0).setSoundEffect(SoundEffect.tree);
-        case CellType.Rock: return new CellData('hsl(120, 0%, 30%)', CellBlockType.Block, false, 0, 0);
+        case CellType.Water: return new CellData('hsl(210, 50%, 60%)', CellBlockType.None, true, 0, 0)
+            .setLandSoundEffect(SoundEffect.water);
+        case CellType.Sand: return new CellData('hsl(55, 50%, 60%)', CellBlockType.None, false, -1, 0)
+            .setLandSoundEffect(SoundEffect.bunker);
+        case CellType.Tree: return new CellData('hsl(120, 20%, 35%)', CellBlockType.Stick, false, 0, 0)
+            .setBlockSoundEffect(SoundEffect.tree);
+        case CellType.Rock: return new CellData('hsl(120, 0%, 30%)', CellBlockType.Block, false, 0, 0)
+            .setBlockSoundEffect(SoundEffect.tree);
         case CellType.Hole: return new CellData('hsl(170, 60%, 45%)', CellBlockType.None, false, 0, 0);
     }
 }
@@ -38,7 +43,8 @@ export class CellData {
     outOfBounds: boolean;
     shotModifier: number;
     rollDistance: number;
-    soundEffect: SoundEffect|null = null;
+    landSoundEffect: SoundEffect|null = null;
+    blockSoundEffect: SoundEffect|null = null;
 
     constructor(primaryColor:string, blockType: CellBlockType, outOfBounds: boolean, shotModifier: number, landingBonus: number) {
         this.primaryColor = primaryColor;
@@ -48,8 +54,12 @@ export class CellData {
         this.rollDistance = landingBonus;
     }
 
-    setSoundEffect(effect: SoundEffect): this {
-        this.soundEffect = effect;
+    setLandSoundEffect(effect: SoundEffect): this {
+        this.landSoundEffect = effect;
+        return this;
+    }
+    setBlockSoundEffect(effect: SoundEffect): this {
+        this.blockSoundEffect = effect;
         return this;
     }
 }
@@ -249,4 +259,114 @@ export function moveInDirection(position: Position, direction: Direction): Posit
 
 export function rotateDirection(direction: Direction, angle: number): Direction {
     return (((direction + angle) % 8) + 8) % 8;
+}
+
+export function getUnitVector(direction: Direction): Position {
+    switch (direction) {
+        case Direction.N:  return [ 0,  1];
+        case Direction.NE: return [ 1,  1];
+        case Direction.E:  return [ 1,  0];
+        case Direction.SE: return [ 1, -1];
+        case Direction.S:  return [ 0, -1];
+        case Direction.SW: return [-1, -1];
+        case Direction.W:  return [-1,  0];
+        case Direction.NW: return [-1,  1];
+    }
+}
+
+class CellAnimationComponent {
+    #keyframes: Keyframe[];
+    #durationMs: number;
+    #onGlowElement: boolean;
+
+    constructor(keyframes: Keyframe[], durationMs: number, onGlowElement?: boolean) {
+        this.#keyframes = keyframes;
+        this.#durationMs = durationMs;
+        this.#onGlowElement = onGlowElement ?? false;
+    }
+
+    play(cell: HTMLElement) {
+        if (this.#onGlowElement) {
+            cell.querySelector('.glow-element')?.animate(this.#keyframes, {
+                duration: this.#durationMs,
+                iterations: 1,
+            });
+        } else {
+            cell.animate(this.#keyframes, {
+                duration: this.#durationMs,
+                iterations: 1,
+            });
+        }
+    }
+}
+
+export class CellAnimation {
+    #components: CellAnimationComponent[];
+
+    constructor(components: CellAnimationComponent[]) {
+        this.#components = components;
+    }
+
+    play(cell: HTMLElement) {
+        for (const component of this.#components) {
+            component.play(cell);
+        }
+    }
+
+    static #rotationAxis(direction: Direction) {
+        return getUnitVector(rotateDirection(direction, 2));
+    }
+
+    static combine(...animations: CellAnimation[]): CellAnimation {
+        return new CellAnimation(animations.reduce((combined, animation) => {
+            combined.push(...animation.#components);
+            return combined;
+        }, [] as CellAnimationComponent[]));
+    }
+
+    static glow(color: string, spread: number, durationMs: number): CellAnimation {
+        return new CellAnimation([
+            new CellAnimationComponent([
+                {boxShadow: `0 0 ${spread}px ${spread/2}px transparent`, easing: 'ease-out'},
+                {boxShadow: `0 0 ${spread}px ${spread/2}px ${color}`, easing: 'ease-in', offset: 0.02},
+                {boxShadow: `0 0 ${spread}px ${spread/2}px transparent`},
+            ], durationMs, true),
+        ]);
+    }
+
+    static wobble(direction: Direction, initialRotation: number, durationMs: number): CellAnimation {
+        const strikeOffset = 0.05;
+        const decay = 0.625;
+        const numWobbles = 6;
+        const axis = this.#rotationAxis(direction);
+        let animation: Keyframe[] = [
+            {transform: `rotate3d(${axis[0]}, ${-axis[1]}, 0, 0deg)`, easing: 'ease-out'},
+            {
+                transform: `rotate3d(${axis[0]}, ${-axis[1]}, 0, ${initialRotation}deg)`,
+                offset: strikeOffset,
+                easing: `cubic-bezier(.42,0,.58,1)`,
+            },
+        ];
+        for (let i = 1; i < numWobbles; i++) {
+            animation.push({
+                transform: `rotate3d(${axis[0]}, ${-axis[1]}, 0, ${initialRotation*Math.pow(-decay, i)}deg)`,
+                offset: strikeOffset + i*(1-strikeOffset)/numWobbles,
+                easing: `cubic-bezier(.42,0,.58,1)`,
+            });
+        }
+        animation.push({transform: `rotate3d(${axis[0]}, ${-axis[1]}, 0, 0deg)`})
+        return new CellAnimation([
+            new CellAnimationComponent(animation, durationMs),
+        ])
+    }
+
+    static spin(direction: Direction, durationMs: number): CellAnimation {
+        let axis = this.#rotationAxis(direction);
+        return new CellAnimation([
+            new CellAnimationComponent([
+                {transform: `rotate3d(${axis[0]}, ${-axis[1]}, 0, 0deg)`, easing: 'cubic-bezier(0, 0.2, 0, 1)'},
+                {transform: `rotate3d(${axis[0]}, ${-axis[1]}, 0, ${360*4}deg)`},
+            ], durationMs),
+        ])
+    }
 }

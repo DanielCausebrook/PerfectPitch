@@ -1,19 +1,18 @@
 import {browser} from '$app/environment';
-import putter from '$lib/licensed/sports golfing golf club swing hit ball putter 01.wav';
-import putter2 from '$lib/licensed/sports golfing golf club swing hit ball putter 04.wav';
-import iron from '$lib/licensed/sports golfing golf club swing hit ball iron from fairway 01.wav';
-import driver from '$lib/licensed/sports golfing golf club swing hit ball driver from tee 02.wav';
-import wedge from '$lib/licensed/sports golfing golf club swing hit ball wedge from fairway 04.wav';
-import sandWedge from '$lib/licensed/sports golfing golf club swing hit ball wedge from hazzard sand trap 03.wav';
-import bunker from '$lib/licensed/sports golfing golf ball land in hazzard sand trap 07.wav';
-import water from '$lib/licensed/sports golfing golf ball land in water hazzard 03.wav';
-import tree from '$lib/licensed/sports golfing golf ball hit tree then ground 03.wav';
-import hole from '$lib/licensed/sports golfing golf ball drops falls in hole 01.wav';
+import putter from '$lib/licensed/sports golfing golf club swing hit ball putter 01.mp3';
+import iron from '$lib/licensed/sports golfing golf club swing hit ball iron from fairway 01.mp3';
+import driver from '$lib/licensed/sports golfing golf club swing hit ball driver from tee 02.mp3';
+import wedge from '$lib/licensed/sports golfing golf club swing hit ball wedge from fairway 04.mp3';
+import sandWedge from '$lib/licensed/sports golfing golf club swing hit ball wedge from hazzard sand trap 03.mp3';
+import bunker from '$lib/licensed/sports golfing golf ball land in hazzard sand trap 07.mp3';
+import water from '$lib/licensed/sports golfing golf ball land in water hazzard 03.mp3';
+import tree from '$lib/licensed/sports golfing golf ball hit tree then ground 03.mp3';
+import hole from '$lib/licensed/sports golfing golf ball drops falls in hole 01.mp3';
 
 export class SoundEffect {
-    static putter = new SoundEffect(putter2, 1);
-    static iron = new SoundEffect(iron, 0.7, 70);
-    static driver = new SoundEffect(driver, 0.9, 200);
+    static putter = new SoundEffect(putter, 1);
+    static iron = new SoundEffect(iron, 0.7);
+    static driver = new SoundEffect(driver, 0.9);
     static wedge = new SoundEffect(wedge, 0.4);
     static sandWedge = new SoundEffect(sandWedge, 0.6);
     static bunker = new SoundEffect(bunker, 0.5);
