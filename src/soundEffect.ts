@@ -11,9 +11,9 @@ import hole from '$lib/licensed/sports golfing golf ball drops falls in hole 01.
 
 export class SoundEffect {
     static putter = new SoundEffect(putter, 1);
-    static iron = new SoundEffect(iron, 0.7);
-    static driver = new SoundEffect(driver, 0.9);
-    static wedge = new SoundEffect(wedge, 0.4);
+    static iron = new SoundEffect(iron, 0.75);
+    static driver = new SoundEffect(driver, 0.4);
+    static wedge = new SoundEffect(wedge, 0.35);
     static sandWedge = new SoundEffect(sandWedge, 0.6);
     static bunker = new SoundEffect(bunker, 0.5);
     static water = new SoundEffect(water, 0.7);
