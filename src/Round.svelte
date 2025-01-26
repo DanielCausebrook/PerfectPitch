@@ -147,6 +147,7 @@
             await sinkAnimation(player.position, cellData.primaryColor, direction);
             player.position = startingPosition;
         } else if (cell === CellType.Hole) {
+            await timeout(400);
             win = true;
             SoundEffect.hole.play();
             winAnimation(player.position);
