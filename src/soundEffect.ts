@@ -9,6 +9,8 @@ import water from '$lib/licensed/sports golfing golf ball land in water hazzard 
 import tree from '$lib/licensed/sports golfing golf ball hit tree then ground 03.mp3';
 import hole from '$lib/licensed/sports golfing golf ball drops falls in hole 01.mp3';
 
+const audioContext = browser ? new AudioContext() : null;
+
 export class SoundEffect {
     static putter = new SoundEffect(putter, 1);
     static iron = new SoundEffect(iron, 0.75);
@@ -21,13 +23,17 @@ export class SoundEffect {
     static hole = new SoundEffect(hole, 0.6);
 
     audio: HTMLAudioElement|null = null;
+    track: MediaElementAudioSourceNode|null = null;
     startAtMs: number = 0;
 
     constructor(url: string, volume: number, startAtMs?: number) {
         this.startAtMs = startAtMs ?? 0;
-        if (browser) {
+        if (browser && audioContext !== null) {
             this.audio = new Audio(url);
+            this.audio.load();
             this.audio.volume = volume;
+            this.track = audioContext.createMediaElementSource(this.audio);
+            this.track.connect(audioContext.destination);
         }
     }
 
