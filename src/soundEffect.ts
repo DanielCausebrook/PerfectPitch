@@ -38,7 +38,10 @@ export class SoundEffect {
     }
 
     play() {
-        if(this.audio !== null) {
+        if(this.audio !== null && audioContext !== null) {
+            if (audioContext.state === "suspended") {
+                audioContext.resume();
+            }
             this.audio.currentTime = this.startAtMs / 1000;
             this.audio.play();
         }
