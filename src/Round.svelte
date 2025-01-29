@@ -215,6 +215,8 @@
         display: flex;
         flex-flow: column nowrap;
         grid-gap: 15px;
+        margin: 25px;
+
         > .course {
             grid-area: course;
         }
@@ -257,7 +259,7 @@
             align-items: flex-end;
             justify-content: space-between;
             gap: 10px;
-            height: 25px;
+            height: 35px;
             line-height: 1cap;
 
             > .hole-number {

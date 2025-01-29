@@ -1,6 +1,6 @@
 <script lang="ts">
     import {IconDice3Filled, IconSeedling} from "@tabler/icons-svelte";
-    import {MersenneTwister19937} from "random-js";
+    import {MersenneTwister19937, Random} from "random-js";
     import {Player} from "./player";
     import {Course} from "./course";
     import Round from "./Round.svelte";
@@ -23,11 +23,7 @@
         let rng = MersenneTwister19937.seed(seed);
         currentRoundSeed = seed;
         nextRoundSeed = rng.next();
-        let maybeCourse: Course|null = null;
-        while (maybeCourse === null) {
-            maybeCourse = Course.generate(20, 20, MersenneTwister19937.seed(rng.next()));
-        }
-        course = maybeCourse;
+        course = Course.generate(20, 20, new Random(MersenneTwister19937.seed(rng.next())));
         player.position = course.tee();
     }
 
@@ -91,6 +87,7 @@
       "header header header" auto
       ". main ." 1fr
       / 1fr auto 1fr;
+        height: 100vh;
 
         > header {
             grid-area: header;
@@ -167,11 +164,10 @@
         > main {
             grid-area: main;
             align-self: start;
-            display: flex;
-            flex-flow: column nowrap;
-            justify-content: center;
-            margin: 25px;
             max-width: 1280px;
+            max-height: 100%;
+            min-height: 100%;
+            overflow-y: auto;
         }
     }
 </style>

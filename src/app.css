@@ -27,7 +27,8 @@ body {
   display: flex;
   flex-flow: column nowrap;
   min-width: 320px;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: clip;
 }
 
 h1 {
@@ -43,6 +44,8 @@ h1 {
   flex: 1 1 auto;
   display: flex;
   flex-flow: column nowrap;
+  height: 100vh;
+  overflow: clip;
 }
 
 button {
