@@ -18,7 +18,7 @@
     import {timeout} from "./utilities";
     import ClubInfo from "./ClubInfo.svelte";
     import {IconArrowRight} from "@tabler/icons-svelte";
-    import {nativeMath, pick} from "random-js";
+    import {bool, nativeMath, pick} from "random-js";
     import {SoundEffect} from "./soundEffect";
     import type {Player} from "./player";
 
@@ -82,6 +82,7 @@
 
         let distanceMoved = 0;
         let distanceBounced = 0;
+        let slicedYet = false;
 
         let startingPosition = player.position;
         let movementRemaining: number = diceRoll;
@@ -91,11 +92,12 @@
 
         while (movementRemaining > 0) {
             movementRemaining--;
-            if (movementRemaining === 0 && distanceBounced === 0 && diceRoll >= 5) {
+            distanceMoved++;
+            if (!slicedYet && distanceMoved >= 5 && distanceBounced === 0 && bool(0.25)(nativeMath)) {
                 direction = rotateDirection(direction, pick(nativeMath, [-1, 0, 0, 1]));
+                slicedYet = true;
             }
             let newPosition = moveInDirection(player.position, direction);
-            distanceMoved++;
             if (!course.isValidPosition(newPosition)) {
                 if (distanceMoved === 1) await timeout(200);
                 distanceMoved--;
