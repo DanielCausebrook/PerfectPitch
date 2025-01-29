@@ -109,10 +109,8 @@
             if (cellData.blockType === CellBlockType.Block) {
                 if (distanceMoved === 1) await timeout(200);
                 distanceMoved--;
-                if (movementRemaining > 0) {
-                    interactAnimation(newPosition, cellData.primaryColor, 1, rotateDirection(direction, 2));
-                    cellData.blockSoundEffect?.play();
-                }
+                interactAnimation(newPosition, cellData.primaryColor, 1, rotateDirection(direction, 2));
+                cellData.blockSoundEffect?.play();
                 movementRemaining = 0;
                 break;
             } else if (cellData.blockType === CellBlockType.Stick && !clubData.noStick()) {
