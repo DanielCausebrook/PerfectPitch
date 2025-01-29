@@ -91,11 +91,10 @@
 
         while (movementRemaining > 0) {
             movementRemaining--;
-            let adjustedDirection = direction;
             if (movementRemaining === 0 && distanceBounced === 0 && diceRoll >= 5) {
-                adjustedDirection = rotateDirection(direction, pick(nativeMath, [-1, 0, 0, 1]));
+                direction = rotateDirection(direction, pick(nativeMath, [-1, 0, 0, 1]));
             }
-            let newPosition = moveInDirection(player.position, adjustedDirection);
+            let newPosition = moveInDirection(player.position, direction);
             distanceMoved++;
             if (!course.isValidPosition(newPosition)) {
                 if (distanceMoved === 1) await timeout(200);
@@ -122,12 +121,11 @@
                 }
                 movementRemaining = 0;
                 break;
-            } else {
-                if (movementRemaining === 0 && distanceBounced < cellData.rollDistance && clubData.allowsRolls()) {
-                    interactAnimation(newPosition, cellData.primaryColor, 0.5, direction);
-                    distanceBounced++;
-                    movementRemaining++;
-                }
+            }
+            if (movementRemaining === 0 && distanceBounced < cellData.rollDistance && clubData.allowsRolls()) {
+                interactAnimation(newPosition, cellData.primaryColor, 0.5, direction);
+                distanceBounced++;
+                movementRemaining++;
             }
             player.position = newPosition;
             if (movementRemaining === 0) {
