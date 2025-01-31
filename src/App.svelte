@@ -9,14 +9,14 @@
     import {seedToSeedId} from "./seed.js";
     import {base} from "$app/paths";
 
-    export let seed: number;
+    export let seed: number|null;
 
     let currentRoundSeed: number|null = null;
     let nextRoundSeed: number|null = null;
 
     let seedStringInput: string = '';
 
-    let course: Course|null;
+    let course: Course|null = null;
     let player: Player = new Player([0, 0], 4);
 
     function beginRound(seed: number) {
@@ -51,7 +51,11 @@
         beginRound(seed);
     }
 
-    beginRound(seed);
+    $: {
+        if (seed !== null) {
+            beginRound(seed);
+        }
+    }
 </script>
 
 <div class="wrapper">
@@ -72,11 +76,13 @@
         </div>
     </header>
     <main>
-        {#if course !== null}
-            {#key course}
+        {#key course}
+            {#if course !== null}
                 <Round course={course} player={player} onCompletion={nextRound} />
-            {/key}
-        {/if}
+            {:else}
+                <div class="loading">Generating...</div>
+            {/if}
+        {/key}
     </main>
 </div>
 <style>
@@ -104,6 +110,7 @@
                 justify-content: space-between;
                 max-width: 1280px;
                 padding: 5px 0;
+                gap: 100px;
 
                 > span {
                     display: block;
@@ -168,6 +175,13 @@
             max-height: 100%;
             min-height: 100%;
             overflow-y: auto;
+
+            > .loading {
+                color: hsl(0, 0%, 30%);
+                font-size: 42pt;
+                margin: 20px;
+                text-align: center;
+            }
         }
     }
 </style>

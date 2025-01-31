@@ -5,9 +5,12 @@
     import {seedFromSeedId} from "../../seed";
 
     let now = new Date();
-    let urlSeedId: string|null = browser ? page.url.searchParams.get('seed') : null;
-    let seed: number = urlSeedId === null
-        ? now.getFullYear() * 10000 + (now.getMonth()+1) * 100 + now.getDate()
-        : seedFromSeedId(urlSeedId);
+    let seed: number|null = null;
+    if (browser) {
+        let urlSeedId: string|null = page.url.searchParams.get('seed');
+        seed = urlSeedId === null
+            ? now.getFullYear() * 10000 + (now.getMonth()+1) * 100 + now.getDate()
+            : seedFromSeedId(urlSeedId);
+    }
 </script>
 <App seed={seed} />
