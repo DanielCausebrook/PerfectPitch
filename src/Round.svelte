@@ -100,7 +100,7 @@
         while (movementRemaining > 0) {
             movementRemaining--;
             distanceMoved++;
-            if (!slicedYet && distanceMoved >= 5 && distanceBounced === 0 && bool(0.25)(nativeMath)) {
+            if (!slicedYet && distanceMoved >= 5 && distanceBounced === 0 && bool(1/3)(nativeMath)) {
                 direction = rotateDirection(direction, pick(nativeMath, [-1, 0, 0, 1]));
                 slicedYet = true;
             }
