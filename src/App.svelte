@@ -23,7 +23,7 @@
         let rng = MersenneTwister19937.seed(seed);
         currentRoundSeed = seed;
         nextRoundSeed = rng.next();
-        course = Course.generate(20, 22, 2, 2.5, new Random(MersenneTwister19937.seed(rng.next())));
+        course = Course.generate(22, 22, 3, 2.5, new Random(MersenneTwister19937.seed(rng.next())));
         player.position = course.tee();
     }
 

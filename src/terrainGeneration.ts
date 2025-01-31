@@ -150,8 +150,17 @@ export class TerrainMap {
         return this.inner.data[x][y];
     }
 
-    threshold(value: number) {
-        return this.inner.data.map(col => col.map(v => v >= value));
+    threshold(value:number) {
+        this.inner.data.forEach(col => col.forEach((v, i) => col[i] = v >= value ? 1 : 0));
+        return this;
+    }
+
+    boolThreshold(value: number) {
+        return new Matrix2D(
+            this.inner.data.map(col => col.map(v => v >= value)),
+            this.inner.width,
+            this.inner.height
+        );
     }
 
     toArray() {
@@ -241,7 +250,7 @@ export class LoopyNoise2D {
     }
 }
 
-export function loopErasedRandomWalk(width: number, height: number, start: Position, end: Position, rng: Random) {
+export function loopErasedRandomWalk( walls: Matrix2D<boolean>,start: Position, end: Position, rng: Random) {
     let markDelay = 1;
     function positionHash(pos: Position) { return pos[0] + ',' + pos[1]; }
     let startHash = positionHash(start);
@@ -255,8 +264,9 @@ export function loopErasedRandomWalk(width: number, height: number, start: Posit
         }
     }
     function isOutOfBounds(p: Position): boolean {
-        return (p[0] < 0 || p[0] >= width || p[1] < 0 || p[1] >= height)
-            || ((p[0] === 0 || p[0] === width - 1) && (p[1] === 0 || p[1] === height - 1)); // Disallow corners because it can get stuck in corners.
+        return (p[0] < 0 || p[0] >= walls.width || p[1] < 0 || p[1] >= walls.height)
+            || ((p[0] === 0 || p[0] === walls.width - 1) && (p[1] === 0 || p[1] === walls.height - 1))
+            || walls.data[p[0]][p[1]]; // Disallow corners because it can get stuck in corners.
     }
     function isEnd(p: Position): boolean {
         return p[0] === end[0] && p[1] === end[1];
@@ -335,6 +345,7 @@ export function loopErasedRandomWalk(width: number, height: number, start: Posit
 }
 
 export function gaussianBlur(matrix: Matrix2D<number>, sigma: number): Matrix2D<number> {
+    if (sigma === 0) return matrix.copy();
     const distribution = gaussian(0, sigma);
     let gaussianValues = [distribution.cdf(0.5)-distribution.cdf(-0.5)];
     let energyCovered = gaussianValues[0];
@@ -368,7 +379,7 @@ export function gaussianBlur(matrix: Matrix2D<number>, sigma: number): Matrix2D<
 }
 
 export function generateTeeAndHolePos(width: number, height: number, xEdge: number, yEdge: number, rng: Random): [Position, Position] {
-    const positionLimit = 0.25;
+    const positionLimit = 0.4;
 
     const positionRng = new Random(MersenneTwister19937.seed(rng.uint32()));
     function generatePosition(longSide: number, shortSide: number, longEdge: number, shortEdge: number, longLimit: number): [number, number] {
@@ -465,6 +476,7 @@ export function createTerrainDebugSettings() {
     return new TerrainDebugSettings()
         .addSetting(new TerrainDebugRadioGroup('map', 'Map', 'result', 'Result')
             .addOption('edge', "Edge")
+            .addOption('walls', "Walls")
             .addOption('path', 'Path')
             .addOption('pathEnds', 'Path Ends')
             .addOption('l', 'Land')
@@ -488,9 +500,9 @@ export function createTerrainDebugSettings() {
 }
 
 export class DebugMap {
-    map: (number|boolean)[][];
+    map: Matrix2D<number|boolean>;
 
-    constructor(map: (number | boolean)[][]) {
+    constructor(map: Matrix2D<number|boolean>) {
         this.map = map;
     }
 }
@@ -514,9 +526,25 @@ export function generateTerrainDebug(width: number, height: number, xEdge: numbe
         }
         return edgeProximity;
     });
-    if (debug?.is('map', 'edge')) return new DebugMap(edgeProximityMap.toArray());
+    if (debug?.is('map', 'edge')) return new DebugMap(edgeProximityMap.inner);
 
-    let path = loopErasedRandomWalk(width, height, teePos, holePos, new Random(MersenneTwister19937.seed(rng.uint32())));
+
+    let center: Position = [Math.round((teePos[0] + holePos[0])/2), Math.round((teePos[1] + holePos[1])/2)];
+    let distance = Math.hypot(teePos[0]-holePos[0], teePos[1]-holePos[1])
+    let radius = Math.min(Math.min(width-2*xEdge, height-2*yEdge) / 6, distance/2-1.5);
+    let walls = Matrix2D.build(width, height, (x, y) => {
+        if (Math.abs(center[0]-x) <= radius && Math.abs(center[1]-y) <= radius
+            && Math.hypot(center[0] - x, center[1] - y) < radius) {
+            return true;
+        }
+        if (x < xEdge || x >= width - xEdge || y < yEdge || y >= height - yEdge) {
+            return true;
+        }
+        return false;
+    });
+    if (debug?.is('map', 'walls')) return new DebugMap(walls);
+
+    let path = loopErasedRandomWalk(walls, teePos, holePos, new Random(MersenneTwister19937.seed(rng.uint32())));
 
     let rawPathMap = Matrix2D.of(width, height, 0);
     for (const pos of path) {
@@ -547,8 +575,8 @@ export function generateTerrainDebug(width: number, height: number, xEdge: numbe
     pathMap.blur(1.7).scale(3).clamp();
     endsMap.blur(1.7).scale(4.5).clamp();
 
-    if (debug?.is('map', 'path')) return new DebugMap(!debug?.get('m') ? pathMap.toArray(): rawPathMap.data);
-    if (debug?.is('map', 'pathEnds')) return new DebugMap(endsMap.toArray());
+    if (debug?.is('map', 'path')) return new DebugMap(!debug?.get('m') ? pathMap.inner: rawPathMap);
+    if (debug?.is('map', 'pathEnds')) return new DebugMap(endsMap.inner);
 
     let landMap = mB.prod(
         mB.prod(
@@ -558,9 +586,9 @@ export function generateTerrainDebug(width: number, height: number, xEdge: numbe
         endsMap.copy().invert(),
         pathMap.copy().scale(0.08).invert()
     ).invert().pinch(-0.5, 1);
-    if (debug?.is('map', 'l')) return new DebugMap(landMap.toArray());
+    if (debug?.is('map', 'l')) return new DebugMap(landMap.inner);
 
-    let waterMap = landMap.copy().invert().threshold(0.5);
+    let waterMap = landMap.copy().invert().threshold(0.5).blur(0.35).boolThreshold(0.5);
     if (debug?.is('map', 'w')) return new DebugMap(waterMap);
 
     let fairwayMapV = mB.prod(
@@ -572,20 +600,31 @@ export function generateTerrainDebug(width: number, height: number, xEdge: numbe
         ).invert(),
         endsMap.copy().scale(3.5, 1).clamp().invert()
     ).invert();
-    if (debug?.is('map', 'f')) return new DebugMap(fairwayMapV.toArray());
-    let fairwayMap = fairwayMapV.threshold(0.5);
+    if (debug?.is('map', 'f')) return new DebugMap(fairwayMapV.inner);
+    let fairwayMap = fairwayMapV.boolThreshold(0.5);
 
     let rockMapV = mB.prod(
         mB.sum(0.5,
-            mB.buildNoiseMap(25).scale(0.1, 0.5),
+            mB.buildNoiseMap(25).scale(0, 0.5),
             mB.buildWarpNoiseMap(12, 12, 6),
         ),
         landMap.copy().shift(0.25).clamp(),
         pathMap.copy().pinch(-0.2, 1, 0.2).clamp().scale(0.8).invert(),
         endsMap.copy().scale(2, 1).clamp().invert()
     );
-    if (debug?.is('map', 'r')) return new DebugMap(!debug?.get('m') ? rockMapV.toArray() : landMap.copy().shift(0.25).clamp().toArray());
-    let rockMap = rockMapV.threshold(0.665);
+    if (debug?.is('map', 'r')) return new DebugMap(!debug?.get('m') ? rockMapV.inner : landMap.copy().shift(0.25).clamp().inner);
+    let rockMap = rockMapV.threshold(0.665).blur(0.5).boolThreshold(0.4);
+
+    let sandMapV = mB.prod(
+        mB.sum(0.5,
+            mB.buildNoiseMap(10).scale(0.15, 0.5),
+            mB.buildWarpNoiseMap(4.5, 8, 4).scale(1, 0.5),
+        ),
+        landMap.copy().invert().scale(4).shift(0.25).clamp(),
+        pathMap.copy().pinch(0.5, 1).clamp().scale(0.5).invert(),
+    ).threshold(0.58).blur(2);
+    if (debug?.is('map', 's')) return new DebugMap(!debug?.get('m')?sandMapV.inner:pathMap.copy().pinch(0.5, 1).clamp().scale(0.5).invert().inner);
+    let sandMap = sandMapV.boolThreshold(0.4);
 
     let treeMapV = mB.prod(
         mB.sum(0.5,
@@ -595,35 +634,26 @@ export function generateTerrainDebug(width: number, height: number, xEdge: numbe
         ),
         landMap.copy().scale(1.5).shift(0.225).clamp(),
         endsMap.copy().scale(2, 1).clamp().invert(),
-        fairwayMapV.copy().scale(3, 1).clamp().invert()
+        fairwayMapV.copy().scale(3, 1).clamp().invert(),
+        sandMapV.copy().scale(1.5, 1).clamp().invert(),
     );
-    if (debug?.is('map', 't')) return new DebugMap(treeMapV.toArray());
-    let treeMap = treeMapV.threshold(0.65);
-
-    let sandMapV = mB.prod(
-        mB.sum(0.5,
-            mB.buildNoiseMap(15).scale(0.1, 0.5),
-            mB.buildNoiseMap(7).scale(1, 0.5),
-        ),
-        landMap.copy().invert().scale(5).shift(0.25).clamp(),
-    );
-    if (debug?.is('map', 's')) return new DebugMap(!debug?.get('m')?sandMapV.toArray():landMap.copy().invert().scale(5, -1).shift(0.25).clamp().toArray());
-    let sandMap = sandMapV.threshold(0.75);
+    if (debug?.is('map', 't')) return new DebugMap(treeMapV.inner);
+    let treeMap = treeMapV.boolThreshold(0.65);
 
     return Matrix2D.build(width, height, (x, y) => {
         if (holePos[0] === x && holePos[1] === y) {
             return CellType.Hole;
         }
         switch (true) {
-            case waterMap[x][y]:
+            case waterMap.data[x][y]:
                 return CellType.Water;
-            case rockMap[x][y]:
+            case rockMap.data[x][y]:
                 return CellType.Rock;
-            case treeMap[x][y]:
+            case treeMap.data[x][y]:
                 return CellType.Tree;
-            case sandMap[x][y]:
+            case sandMap.data[x][y]:
                 return CellType.Sand;
-            case fairwayMap[x][y]:
+            case fairwayMap.data[x][y]:
                 return CellType.Fairway;
             default:
                 return CellType.Rough;

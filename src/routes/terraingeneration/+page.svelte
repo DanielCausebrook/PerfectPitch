@@ -22,7 +22,7 @@
 
     function renderMap(map: Matrix2D<CellType>|DebugMap, ctx: CanvasRenderingContext2D) {
         if (map instanceof DebugMap) {
-            map.map.forEach((col, x) => col.forEach((value, y) => {
+            map.map.data.forEach((col, x) => col.forEach((value, y) => {
                 let numValue = 0;
                 if (typeof value == "number") {
                     numValue = value;
