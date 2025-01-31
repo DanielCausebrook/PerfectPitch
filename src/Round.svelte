@@ -131,12 +131,12 @@
                 movementRemaining = 0;
                 break;
             }
+            updatePosition(newPosition);
             if (movementRemaining === 0 && distanceBounced < cellData.rollDistance && clubData.allowsRolls()) {
                 interactAnimation(newPosition, cellData.primaryColor, 0.5, direction);
                 distanceBounced++;
                 movementRemaining++;
             }
-            updatePosition(newPosition);
             if (movementRemaining === 0) {
                 await timeout(100);
             } else {
