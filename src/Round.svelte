@@ -35,7 +35,7 @@
 
     let rollDice: () => number|null;
     let startDiceAnimation: () => void;
-    let stopDiceAnimation: () => void;
+    let stopDiceAnimation: (at?: number) => void;
 
     let selectDirection: (player: Player) => Promise<Direction>;
     let playAnimation: (pos: Position, animation: CellAnimation) => void;
@@ -84,6 +84,13 @@
         let distanceBounced = 0;
         let slicedYet = false;
 
+        function updatePosition(pos: Position) {
+            player.position = pos;
+            if (distanceBounced === 0) {
+                stopDiceAnimation(distanceMoved);
+            }
+        }
+
         let startingPosition = player.position;
         let movementRemaining: number = diceRoll;
         if (!clubData.noShotModifier()) {
@@ -115,7 +122,7 @@
                 movementRemaining = 0;
                 break;
             } else if (cellData.blockType === CellBlockType.Stick && !clubData.noStick()) {
-                player.position = newPosition;
+                updatePosition(newPosition);
                 await timeout(200);
                 if (movementRemaining > 0) {
                     interactAnimation(newPosition, cellData.primaryColor, 1, rotateDirection(direction, 2));
@@ -129,13 +136,14 @@
                 distanceBounced++;
                 movementRemaining++;
             }
-            player.position = newPosition;
+            updatePosition(newPosition);
             if (movementRemaining === 0) {
                 await timeout(100);
             } else {
                 await timeout(500 - movementRemaining * 60);
             }
         }
+        stopDiceAnimation(diceRoll);
         let cell = course.cell(player.position);
         let cellData = getCellData(cell);
         if (distanceMoved > 0) {

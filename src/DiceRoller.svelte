@@ -1,5 +1,6 @@
 <script lang="ts">
     import Dice from "./Dice.svelte";
+    import {nativeMath, pick} from "random-js";
 
     let animate: boolean = false;
     let timerId: number|null = null;
@@ -11,16 +12,15 @@
         animate = true;
         animationFrame();
     }
-    export const stopAnimation: () => void = () => {
+    export const stopAnimation: (at?: number) => void = (at) => {
         animate = false;
         if (timerId !== null) {
             clearTimeout(timerId);
         }
+        if (at !== undefined) mainDice = at;
     }
     export const roll: () => number|null = () => {
-        stopAnimation();
-        mainDice = doRoll();
-        return mainDice;
+        return doRoll();
     };
 
     function animationFrame() {
@@ -45,10 +45,10 @@
         } else if (current === null) {
             return doRoll();
         } else {
-            let roll = diceFaces[Math.floor(Math.random() * diceFaces.length)];
+            let roll = pick(nativeMath, diceFaces);
             if (roll === current) {
                 // Try again just once
-                roll = diceFaces[Math.floor(Math.random() * diceFaces.length)];
+                roll = pick(nativeMath, diceFaces);
             }
             return roll;
         }
@@ -57,7 +57,7 @@
         if (diceFaces === null) {
             return null;
         } else {
-            return diceFaces[Math.floor(Math.random() * diceFaces.length)];
+            return pick(nativeMath, diceFaces);
         }
     }
 </script>

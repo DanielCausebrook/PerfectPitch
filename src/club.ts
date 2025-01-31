@@ -56,10 +56,10 @@ export class ClubData {
 export function getClubData(clubType: ClubType) {
     switch (clubType) {
         case ClubType.Putter: return new ClubData([1, 1, 1, 1, 2], false, false, true, [CellType.Fairway], SoundEffect.putter);
-        case ClubType.Iron: return new ClubData([2, 3, 3, 4, 5], true, false, false, [CellType.Fairway, CellType.Rough, CellType.Tree], SoundEffect.iron);
-        case ClubType.Driver: return new ClubData([3, 4, 5, 6, 7], true, false, false, [CellType.Fairway, CellType.Rough], SoundEffect.driver);
         case ClubType.Wedge: return new ClubData([1, 2, 2, 3, 3], false, true, false, [CellType.Fairway, CellType.Rough, CellType.Tree, CellType.Sand], SoundEffect.wedge)
             .overrideSoundEffect(CellType.Sand, SoundEffect.sandWedge);
+        case ClubType.Iron: return new ClubData([3, 3, 4, 4, 5], true, false, false, [CellType.Fairway, CellType.Rough, CellType.Tree], SoundEffect.iron);
+        case ClubType.Driver: return new ClubData([4, 5, 6, 7, 8], true, false, false, [CellType.Fairway, CellType.Rough], SoundEffect.driver);
     }
 }
 
