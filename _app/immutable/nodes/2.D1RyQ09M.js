@@ -1,1 +1,0 @@
-import{R as o,b as r}from"../chunks/PEdOZ8iV.js";function n(e,t){throw new o(e,t.toString())}new TextEncoder;function a(){n(307,r+"/play")}const c=Object.freeze(Object.defineProperty({__proto__:null,load:a},Symbol.toStringTag,{value:"Module"}));export{c as universal};
