@@ -1,17 +1,38 @@
 import {MersenneTwister19937, Random} from "random-js";
 import {createNoise2D, type NoiseFunction2D} from "simplex-noise";
 import {CellType, Direction, moveInDirection, type Position} from "./course";
+import gaussian from "gaussian";
 
-export function buildMap<T>(width: number, height: number, fn: (x:number, y:number) => T): T[][] {
-    let result = [];
-    for (let x = 0; x < width; x++) {
-        let col = [];
-        for (let y = 0; y < height; y++) {
-            col.push(fn(x, y));
-        }
-        result.push(col);
+export class Matrix2D<T> {
+    readonly width: number;
+    readonly height: number;
+    data: T[][];
+
+    constructor(matrix: T[][], width: number, height: number) {
+        this.width = width;
+        this.height = height;
+        this.data = matrix;
     }
-    return result;
+
+    static of<T>(width: number, height: number, value: T): Matrix2D<T> {
+        return new Matrix2D(Array(width).fill(null).map(_ => Array(height).fill(value)), width, height);
+    }
+
+    static build<T>(width: number, height: number, fn: (x: number, y: number) => T): Matrix2D<T> {
+        let data = [];
+        for (let x = 0; x < width; x++) {
+            let col = [];
+            for (let y = 0; y < height; y++) {
+                col.push(fn(x, y));
+            }
+            data.push(col);
+        }
+        return new Matrix2D(data, width, height);
+    }
+
+    copy() {
+        return new Matrix2D(this.data.map(col => col.slice()), this.width, this.height);
+    }
 }
 
 export class ValMapBuilder {
@@ -26,62 +47,69 @@ export class ValMapBuilder {
         this.#rng = rng;
     }
 
+    fromMatrix2D(matrix: Matrix2D<number>): TerrainMap {
+        if (this.#width !== matrix.width || this.#height !== matrix.height) {
+            throw new Error("Dimensions do not match.");
+        }
+        return new TerrainMap(matrix);
+    }
+
     setGlobalNoiseScale(scale: number) {
         this.#globalScale = scale;
     }
 
+    buildMap(fn: (x:number, y:number) => number): TerrainMap {
+        return new TerrainMap(Matrix2D.build(this.#width, this.#height, fn));
+    }
+
     buildNoiseMap(scale: number) {
         let noise = new Noise2D(scale*this.#globalScale, new Random(MersenneTwister19937.seed(this.#rng.uint32())));
-        return this.buildMap((x, y) => noise.get(x, y));
+        return this.buildMap((x, y) => 0.5*noise.get(x, y) + 0.5);
     }
 
     buildWarpNoiseMap(scale: number, warpScale: number, warpAmount: number) {
         let noise = new WarpNoise2D(scale*this.#globalScale, warpScale*this.#globalScale, warpAmount/this.#globalScale, new Random(MersenneTwister19937.seed(this.#rng.uint32())));
-        return this.buildMap((x, y) => noise.get(x, y));
+        return this.buildMap((x, y) => 0.5*noise.get(x, y) + 0.5);
     }
 
     buildLoopyNoiseMap(scale: number, warpAmount: number, warpVarianceScale: number, warpVariance: number, loopScale: number, loopiness: number) {
         let noise = new LoopyNoise2D(scale*this.#globalScale, warpAmount/this.#globalScale, warpVarianceScale*this.#globalScale, warpVariance/this.#globalScale, loopScale*this.#globalScale, loopiness, new Random(MersenneTwister19937.seed(this.#rng.uint32())));
-        return this.buildMap((x, y) => noise.get(x, y));
+        return this.buildMap((x, y) => 0.5*noise.get(x, y) + 0.5);
     }
 
-    buildMap(fn: (x:number, y:number) => number): ValMap {
-        return new ValMap(buildMap(this.#width, this.#height, fn));
-    }
-
-    sum(...maps: ValMap[]): ValMap {
+    sum(center: number, ...maps: TerrainMap[]): TerrainMap {
         return this.buildMap((x, y) => {
-            return maps.reduce((s, m) => s + m.get(x, y), 0);
+            return maps.reduce((s, m) => s + m.get(x, y) - center, center);
         });
     }
 
-    prod01(...maps: ValMap[]): ValMap {
+    prod(...maps: TerrainMap[]): TerrainMap {
         return this.buildMap((x, y) => {
-            return 2*maps.reduce((s, m) => s * (0.5*m.get(x, y) + 0.5), 1) - 1;
+            return maps.reduce((s, m) => s * m.get(x, y), 1);
         });
     }
 }
 
-export class ValMap {
-    #map: number[][];
+export class TerrainMap {
+    inner: Matrix2D<number>;
 
-    constructor(map: number[][]) {
-        this.#map = map;
+    constructor(map: Matrix2D<number>) {
+        this.inner = map;
     }
 
     apply(fn: (v: number) => number) {
-        this.#map.forEach(col => col.forEach((v, i) => col[i] = fn(v)));
+        this.inner.data.forEach(col => col.forEach((v, i) => col[i] = fn(v)));
         return this;
     }
 
     shift(amount: number) {
-        this.#map.forEach(col => col.forEach((v, i) => col[i] = v + amount));
+        this.inner.data.forEach(col => col.forEach((v, i) => col[i] = v + amount));
         return this;
     }
 
     scale(factor: number, center?: number) {
         center = center ?? 0;
-        this.#map.forEach(col => col.forEach((v, i) => col[i] = center + (v-center) * factor));
+        this.inner.data.forEach(col => col.forEach((v, i) => col[i] = center + (v-center) * factor));
         return this;
     }
 
@@ -89,7 +117,7 @@ export class ValMap {
         center = center ?? 0;
         range = range ?? 1;
         let exponent = Math.pow(Math.E, -amount);
-        this.#map.forEach(col => col.forEach((v, i) => {
+        this.inner.data.forEach(col => col.forEach((v, i) => {
             let adjusted = v - center;
             let sign = Math.sign(adjusted);
             col[i] = center + sign*Math.pow(sign*adjusted/range, exponent)*range;
@@ -97,32 +125,37 @@ export class ValMap {
         return this;
     }
 
+    blur(sigma: number) {
+        this.inner = gaussianBlur(this.inner, sigma);
+        return this;
+    }
+
     invert() {
-        this.#map.forEach(col => col.forEach((v, i) => col[i] = -v));
+        this.inner.data.forEach(col => col.forEach((v, i) => col[i] = 1-v));
         return this;
     }
 
     clamp(low?: number, high?: number) {
-        low = low??-1;
+        low = low??0;
         high = high??1;
-        this.#map.forEach(col => col.forEach((v, i) => col[i] = Math.min(high, Math.max(low, v))));
+        this.inner.data.forEach(col => col.forEach((v, i) => col[i] = Math.min(high, Math.max(low, v))));
         return this;
     }
 
     copy() {
-        return new ValMap(this.#map.map(col => col.slice()));
+        return new TerrainMap(this.inner.copy());
     }
 
     get(x: number, y: number) {
-        return this.#map[x][y];
+        return this.inner.data[x][y];
     }
 
     threshold(value: number) {
-        return this.#map.map(col => col.map(v => v >= value));
+        return this.inner.data.map(col => col.map(v => v >= value));
     }
 
     toArray() {
-        return this.#map.slice();
+        return this.inner.data.slice();
     }
 }
 
@@ -221,53 +254,53 @@ export function loopErasedRandomWalk(width: number, height: number, start: Posit
             markedCells.delete(markedHash);
         }
     }
+    function isOutOfBounds(p: Position): boolean {
+        return (p[0] < 0 || p[0] >= width || p[1] < 0 || p[1] >= height)
+            || ((p[0] === 0 || p[0] === width - 1) && (p[1] === 0 || p[1] === height - 1)); // Disallow corners because it can get stuck in corners.
+    }
+    function isEnd(p: Position): boolean {
+        return p[0] === end[0] && p[1] === end[1];
+    }
+
     while (true) {
-        while (true) {
-            let nextDirection: Direction = rng.integer(0, 7);
-            let nextPosition = moveInDirection(currentPosition, nextDirection);
-            if (nextPosition[0] < 0 || nextPosition[0] >= width || nextPosition[1] < 0 || nextPosition[1] >= height) {
-                // If path goes off edge, step back 2 steps. (Not required, but makes path avoid edge)
-                for (let i = 0; i < Math.min(2, path.length - 1); i++) {
+        let nextDirection: Direction = rng.integer(0, 7);
+        let nextPosition = moveInDirection(currentPosition, nextDirection);
+        if (isOutOfBounds(nextPosition)) {
+            // If path goes off edge, step back 2 steps. (Not required, but makes path avoid edge)
+            for (let i = 0; i < Math.min(2, path.length - 1); i++) {
+                pathPop();
+            }
+            currentPosition = path[path.length-1].position;
+            continue;
+        }
+
+        if (isEnd(nextPosition)) {
+            path.push({position: end, markedRegion: []});
+            return path.map(step => step.position);
+        }
+
+        let nextPositionHash = positionHash(nextPosition);
+        if (markedCells.has(nextPositionHash)) {
+            // Step back
+
+            let lastStep = path[path.length - 1];
+            while (!lastStep.markedRegion.includes(nextPositionHash)) {
+                if (path.length === 0) {
+                    throw new Error("Path is empty!");
+                }
+                pathPop();
+                lastStep = path[path.length - 1];
+            }
+            if (lastStep.position[0] === nextPosition[0] && lastStep.position[1] === nextPosition[1]) {
+                currentPosition = lastStep.position;
+            } else {
+                for (let i = 0; i < markDelay; i++) {
                     pathPop();
                 }
                 currentPosition = path[path.length-1].position;
-                continue;
             }
-            if (nextPosition[0] === end[0] && nextPosition[1] === end[1]) {
-                path.push({position: end, markedRegion: []});
-                return path.map(step => step.position);
-            }
-            // Disallow corners because it can get stuck in corners.
-            let edgeX = nextPosition[0] === 0 || nextPosition[0] === width - 1;
-            let edgeY = nextPosition[1] === 0 || nextPosition[1] === height - 1;
-            if (edgeX && edgeY) {
-                continue;
-            }
-            let nextPositionHash = positionHash(nextPosition);
-            if (markedCells.has(nextPositionHash)) {
-                let found = false;
-                while (!found) {
-                    if (path.length === 0) {
-                        throw new Error("Path is empty!");
-                    }
-                    let lastStep = path[path.length - 1];
-                    if (lastStep.markedRegion.includes(nextPositionHash)) {
-                        if (lastStep.position[0] === nextPosition[0] && lastStep.position[1] === nextPosition[1]) {
-                            currentPosition = lastStep.position;
-                        } else {
-                            for (let i = 0; i < markDelay; i++) {
-                                pathPop();
-                            }
-                            currentPosition = path[path.length-1].position;
-                        }
-                        found = true;
-                    } else {
-                        pathPop();
-                    }
-                }
-                continue;
-            }
-
+        } else {
+            // Advance
 
             let nextMarked = [positionHash(nextPosition)];
 
@@ -276,7 +309,7 @@ export function loopErasedRandomWalk(width: number, height: number, start: Posit
                 for (let y = -1; y < 2; y++) {
                     for (let x = -1; x < 2; x++) {
                         let cellToMark: Position = [delayedStep.position[0] + x, delayedStep.position[1] + y];
-                        if (cellToMark[0] === end[0] && cellToMark[1] === end[1]) {
+                        if (isEnd(cellToMark)) {
                             for (let i = 0; i < markDelay; i++) {
                                 pathPop();
                             }
@@ -297,75 +330,65 @@ export function loopErasedRandomWalk(width: number, height: number, start: Posit
                 markedRegion: nextMarked,
             });
             currentPosition = nextPosition;
-
-            break;
         }
     }
 }
 
-export function gaussianBlur(width: number, height: number, item: number[][]): number[][] {
-    let blurVector2 = [0.0158, 0.0514, 0.1191, 0.1971, 0.2332, 0.1971, 0.1191, 0.0514, 0.0158];
+export function gaussianBlur(matrix: Matrix2D<number>, sigma: number): Matrix2D<number> {
+    const distribution = gaussian(0, sigma);
+    let gaussianValues = [distribution.cdf(0.5)-distribution.cdf(-0.5)];
+    let energyCovered = gaussianValues[0];
+    let valuesWidth = 0;
+    while (energyCovered < 0.9) {
+        let nextValue = distribution.cdf(valuesWidth+1.5) - distribution.cdf(valuesWidth+0.5);
+        gaussianValues.push(nextValue);
+        gaussianValues.unshift(nextValue);
+        energyCovered += 2*nextValue;
+        valuesWidth++;
+    }
+
     function blurRowsIntoInverted(width: number, height: number, input: number[][]): number[][] {
         let result = Array(height).fill(null).map(() => Array(width).fill(0));
         input.forEach((col, x) => {
             for (let y = 0; y < col.length; y++) {
                 let val = 0;
-                for (let i = -4; i < 5; i++) {
-                    val += (col[y + i] ?? 0) * blurVector2[i+4];
+                let max = 0;
+                for (let i = -valuesWidth; i <= valuesWidth; i++) {
+                    max += (col[y + i] !== undefined) ? gaussianValues[i+ valuesWidth] : 0;
+                    val += (col[y + i] ?? 0) * gaussianValues[i+valuesWidth];
                 }
-                result[y][x] = val;
+                result[y][x] = max === 0 ? 0 : val / max;
             }
         });
         return result;
     }
-    let xBlurredInverted: number[][] = blurRowsIntoInverted(width, height, item);
-    let blurred: number[][] = blurRowsIntoInverted(height, width, xBlurredInverted);
-    return blurred;
+    let xBlurredInverted: number[][] = blurRowsIntoInverted(matrix.width, matrix.height, matrix.data);
+    let blurred: number[][] = blurRowsIntoInverted(matrix.height, matrix.width, xBlurredInverted);
+    return new Matrix2D(blurred, matrix.width, matrix.height);
 }
 
-export function gaussianBlurSmall(width: number, height: number, item: number[][]): number[][] {
-    let blurVector2 = [0.0002,0.0060,0.0606,0.2417,0.3829,0.2417,0.0606,0.0060,0.0002];
-    function blurRowsIntoInverted(width: number, height: number, input: number[][]): number[][] {
-        let result = Array(height).fill(null).map(() => Array(width).fill(0));
-        input.forEach((col, x) => {
-            for (let y = 0; y < col.length; y++) {
-                let val = 0;
-                for (let i = -4; i < 5; i++) {
-                    val += (col[y + i] ?? 0) * blurVector2[i+4];
-                }
-                result[y][x] = val;
-            }
-        });
-        return result;
-    }
-    let xBlurredInverted: number[][] = blurRowsIntoInverted(width, height, item);
-    let blurred: number[][] = blurRowsIntoInverted(height, width, xBlurredInverted);
-    return blurred;
-}
-
-export function generateTeeAndHolePos(width: number, height: number, rng: Random): [Position, Position] {
+export function generateTeeAndHolePos(width: number, height: number, xEdge: number, yEdge: number, rng: Random): [Position, Position] {
     const positionLimit = 0.25;
-    const edgeSize = 1;
 
     const positionRng = new Random(MersenneTwister19937.seed(rng.uint32()));
-    function generatePosition(longSide: number, shortSide: number, longLimit: number): [number, number] {
-        let posLong = positionRng.integer(edgeSize, (longSide - 2*edgeSize) * Math.abs(longLimit) - 1);
+    function generatePosition(longSide: number, shortSide: number, longEdge: number, shortEdge: number, longLimit: number): [number, number] {
+        let posLong = positionRng.integer(longEdge, (longSide - 2*longEdge) * Math.abs(longLimit) - 1);
         if (longLimit < 0) {
             posLong = longSide - posLong - 1;
         }
-        return [posLong, positionRng.integer(edgeSize, shortSide - 2*edgeSize - 1)]
+        return [posLong, positionRng.integer(shortEdge, shortSide - 2*shortEdge - 1)]
     }
     let holePos: Position, teePos: Position;
     let teeAtTop = positionRng.pick([-1, 1]);
     if (width > height) {
-        let [x, y] = generatePosition(width, height, -teeAtTop*positionLimit);
+        let [x, y] = generatePosition(width, height, xEdge, yEdge, -teeAtTop*positionLimit);
         teePos = [x, y];
-        [x, y] = generatePosition(width, height, teeAtTop*positionLimit);
+        [x, y] = generatePosition(width, height, xEdge, yEdge, teeAtTop*positionLimit);
         holePos = [x, y];
     } else {
-        let [y, x] = generatePosition(height, width, -teeAtTop*positionLimit);
+        let [y, x] = generatePosition(height, width, yEdge, xEdge, -teeAtTop*positionLimit);
         teePos = [x, y];
-        [y, x] = generatePosition(height, width, teeAtTop*positionLimit);
+        [y, x] = generatePosition(height, width, yEdge, xEdge, teeAtTop*positionLimit);
         holePos = [x, y];
     }
 
@@ -472,130 +495,122 @@ export class DebugMap {
     }
 }
 
-export function generateTerrainDebug(width: number, height: number, teePos: Position, holePos: Position, rng: Random, debug?: TerrainDebugSettings): CellType[][] | DebugMap {
+export function generateTerrainDebug(width: number, height: number, xEdge: number, yEdge: number, teePos: Position, holePos: Position, rng: Random, debug?: TerrainDebugSettings): Matrix2D<CellType> | DebugMap {
+    let mB = new ValMapBuilder(width, height, rng);
+
+    let edgeProximityMap = mB.buildMap((x, y) => {
+        let edgeProximity = 1;
+        if (x <= xEdge + 1) {
+            edgeProximity *= Math.pow((x+1.5)/(xEdge+3.5), 0.85);
+        }
+        if (x >= width-xEdge-1) {
+            edgeProximity *= Math.pow((width - 1 - (x-1.5))/(xEdge+3.5), 0.85);
+        }
+        if (y <= yEdge + 1) {
+            edgeProximity *= Math.pow((y+1.5)/(yEdge+3.5), 0.85);
+        }
+        if (y >= height-yEdge-1) {
+            edgeProximity *= Math.pow((height - 1 - (y-1.5))/(yEdge+3.5), 0.85);
+        }
+        return edgeProximity;
+    });
+    if (debug?.is('map', 'edge')) return new DebugMap(edgeProximityMap.toArray());
+
     let path = loopErasedRandomWalk(width, height, teePos, holePos, new Random(MersenneTwister19937.seed(rng.uint32())));
 
-    let rawPathMap: number[][] = Array(width).fill(null).map(() => Array(height).fill(0));
-    let rawEndsMap: number[][] = Array(width).fill(null).map(() => Array(height).fill(0));
+    let rawPathMap = Matrix2D.of(width, height, 0);
     for (const pos of path) {
-        rawPathMap[pos[0]][pos[1]] = 1;
+        rawPathMap.data[pos[0]][pos[1]] = 1;
+    }
+    let pathMap = mB.fromMatrix2D(rawPathMap.copy());
+    let endsMap = mB.fromMatrix2D(Matrix2D.of(width, height, 0));
+
+    for (const offset of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+        if (endsMap.inner.data[holePos[0]+offset[0]][holePos[1]+offset[1]] !== undefined)
+            endsMap.inner.data[holePos[0]+offset[0]][holePos[1]+offset[1]] = 0.65;
     }
     for (const offset of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-        if (rawEndsMap[holePos[0]+offset[0]][holePos[1]+offset[1]] !== undefined)
-            rawEndsMap[holePos[0]+offset[0]][holePos[1]+offset[1]] = 0.65;
-    }
-    for (const offset of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-        if (rawEndsMap[teePos[0]+offset[0]][teePos[1]+offset[1]] === 0)
-            rawEndsMap[teePos[0]+offset[0]][teePos[1]+offset[1]] = 0.45;
+        if (endsMap.inner.data[teePos[0]+offset[0]][teePos[1]+offset[1]] === 0)
+            endsMap.inner.data[teePos[0]+offset[0]][teePos[1]+offset[1]] = 0.45;
     }
     let endWeights = [1.5, 1, 0.85, 0.7, 0.5, 0.3];
     endWeights.forEach((weight, i) => {
         let stepFromStart = path[i];
         if (stepFromStart !== undefined) {
-            rawEndsMap[stepFromStart[0]][stepFromStart[1]] += weight;
+            endsMap.inner.data[stepFromStart[0]][stepFromStart[1]] += weight;
         }
         let stepFromEnd = path[path.length - 1 - i];
         if (stepFromEnd !== undefined) {
-            rawEndsMap[stepFromEnd[0]][stepFromEnd[1]] += weight;
+            endsMap.inner.data[stepFromEnd[0]][stepFromEnd[1]] += weight;
         }
     })
+    pathMap.blur(1.7).scale(3).clamp();
+    endsMap.blur(1.7).scale(4.5).clamp();
 
-    let rawPathMapBlurred: number[][] = gaussianBlur(width, height, rawPathMap);
-    let rawEndsMapBlurred: number[][] = gaussianBlur(width, height, rawEndsMap);
-
-
-    let mB = new ValMapBuilder(width, height, rng);
-
-    let pathMap = mB.buildMap((x, y) => {
-        return rawPathMapBlurred[x][y] * 6 - 1;
-    }).clamp();
-    if (debug?.is('map', 'path')) return new DebugMap(pathMap.toArray());
-
-    let endsMap = mB.buildMap((x, y) => {
-        return rawEndsMapBlurred[x][y] * 9 - 1;
-    }).clamp();
+    if (debug?.is('map', 'path')) return new DebugMap(!debug?.get('m') ? pathMap.toArray(): rawPathMap.data);
     if (debug?.is('map', 'pathEnds')) return new DebugMap(endsMap.toArray());
 
-
-    let edgeProximityMap = mB.buildMap((x, y) => {
-        let edgeProximity = 1;
-        if (x <= 2) {
-            edgeProximity *= Math.pow((x+1.5)/4.5, 0.85);
-        }
-        if (x >= width-3) {
-            edgeProximity *= Math.pow((width - 1 - (x-1.5))/4.5, 0.85);
-        }
-        if (y <= 2) {
-            edgeProximity *= Math.pow((y+1.5)/4.5, 0.85);
-        }
-        if (y >= height-3) {
-            edgeProximity *= Math.pow((height - 1 - (y-1.5))/4.5, 0.85);
-        }
-        return 2*edgeProximity - 1;
-    });
-    if (debug?.is('map', 'edge')) return new DebugMap(edgeProximityMap.toArray());
-
-    let landMap = mB.prod01(
-        mB.prod01(
+    let landMap = mB.prod(
+        mB.prod(
             mB.buildWarpNoiseMap(10, 10, 2.5),
-            edgeProximityMap.copy().pinch(0.2, 1, 2),
+            edgeProximityMap.copy().pinch(0.2, 1),
         ).invert(),
-        endsMap.copy().invert(), pathMap.copy().scale(0.08, -1).invert()
-    ).invert().pinch(-0.2, 1, 2);
+        endsMap.copy().invert(),
+        pathMap.copy().scale(0.08).invert()
+    ).invert().pinch(-0.5, 1);
     if (debug?.is('map', 'l')) return new DebugMap(landMap.toArray());
 
-    let waterMap = landMap.copy().invert().threshold(0.2);
+    let waterMap = landMap.copy().invert().threshold(0.5);
     if (debug?.is('map', 'w')) return new DebugMap(waterMap);
 
-    let fairwayMapV = mB.prod01(
-        mB.prod01(
-            mB.sum(
+    let fairwayMapV = mB.prod(
+        mB.prod(
+            mB.sum(0.5,
                 mB.buildWarpNoiseMap(10, 8, 3)
             ),
-            landMap.copy().scale(0.85, -1).shift(0.25).clamp()
+            landMap.copy().scale(0.85).shift(0.125).clamp()
         ).invert(),
         endsMap.copy().scale(3.5, 1).clamp().invert()
     ).invert();
     if (debug?.is('map', 'f')) return new DebugMap(fairwayMapV.toArray());
-    let fairwayMap = fairwayMapV.threshold(0);
+    let fairwayMap = fairwayMapV.threshold(0.5);
 
-    let rockMapV = mB.prod01(
-        mB.sum(
-            mB.buildLoopyNoiseMap(13, 4, 10, 4, 8, 0.025).scale(1),
-            mB.buildWarpNoiseMap(7, 10, 1).scale(0)
+    let rockMapV = mB.prod(
+        mB.sum(0.5,
+            mB.buildNoiseMap(25).scale(0.1, 0.5),
+            mB.buildWarpNoiseMap(12, 12, 6),
         ),
-        landMap.copy().scale(1.4, -1).shift(0.4).clamp(),
-        pathMap.copy().pinch(-0.2, 1, 0.4).clamp().scale(0.8, -1).invert(),
+        landMap.copy().shift(0.25).clamp(),
+        pathMap.copy().pinch(-0.2, 1, 0.2).clamp().scale(0.8).invert(),
         endsMap.copy().scale(2, 1).clamp().invert()
     );
-    if (debug?.is('map', 'r')) return new DebugMap(rockMapV.toArray());
-    let rockMap = rockMapV.threshold(0.15);
+    if (debug?.is('map', 'r')) return new DebugMap(!debug?.get('m') ? rockMapV.toArray() : landMap.copy().shift(0.25).clamp().toArray());
+    let rockMap = rockMapV.threshold(0.665);
 
-    let treeMapV = mB.prod01(
-        mB.sum(
-            mB.buildWarpNoiseMap(10, 15, 2.5).scale(0.15),
-            mB.buildWarpNoiseMap(7, 10, 2).scale(0.5),
-            mB.buildWarpNoiseMap(3, 8, 2).scale(1)
+    let treeMapV = mB.prod(
+        mB.sum(0.5,
+            mB.buildWarpNoiseMap(10, 15, 2.5).scale(0.15, 0.5),
+            mB.buildWarpNoiseMap(7, 10, 2).scale(0.5, 0.5),
+            mB.buildWarpNoiseMap(3, 8, 2).scale(1, 0.5)
         ),
-        landMap.copy().scale(1.5, -1).shift(0.45).clamp(),
+        landMap.copy().scale(1.5).shift(0.225).clamp(),
         endsMap.copy().scale(2, 1).clamp().invert(),
         fairwayMapV.copy().scale(3, 1).clamp().invert()
     );
     if (debug?.is('map', 't')) return new DebugMap(treeMapV.toArray());
-    let treeMap = treeMapV.threshold(0.3);
+    let treeMap = treeMapV.threshold(0.65);
 
-
-    let sandWaterAvoidanceMap = landMap.copy().invert().scale(2, -1).shift(0.25).clamp();
-    let sandMapV = mB.prod01(
-        mB.sum(
-            mB.buildNoiseMap(8).scale(1),
-            ),
-        sandWaterAvoidanceMap
+    let sandMapV = mB.prod(
+        mB.sum(0.5,
+            mB.buildNoiseMap(15).scale(0.1, 0.5),
+            mB.buildNoiseMap(7).scale(1, 0.5),
+        ),
+        landMap.copy().invert().scale(5).shift(0.25).clamp(),
     );
-    if (debug?.is('map', 's')) return new DebugMap(sandMapV.toArray());
-    let sandMap = sandMapV.threshold(0.45);
+    if (debug?.is('map', 's')) return new DebugMap(!debug?.get('m')?sandMapV.toArray():landMap.copy().invert().scale(5, -1).shift(0.25).clamp().toArray());
+    let sandMap = sandMapV.threshold(0.75);
 
-    return buildMap(width, height, (x, y) => {
+    return Matrix2D.build(width, height, (x, y) => {
         if (holePos[0] === x && holePos[1] === y) {
             return CellType.Hole;
         }
@@ -616,8 +631,8 @@ export function generateTerrainDebug(width: number, height: number, teePos: Posi
     });
 }
 
-export function generateTerrain(width: number, height: number, teePos: Position, holePos: Position, rng: Random): CellType[][] {
-    let maybeTerrain = generateTerrainDebug(width, height, teePos, holePos, rng);
+export function generateTerrain(width: number, height: number, xEdge: number, yEdge: number, teePos: Position, holePos: Position, rng: Random): Matrix2D<CellType> {
+    let maybeTerrain = generateTerrainDebug(width, height, xEdge, yEdge, teePos, holePos, rng);
     if (maybeTerrain instanceof DebugMap) {
         throw new Error("Terrain Generation returned debug map without any debug settings being supplied.");
     }

@@ -213,7 +213,7 @@
         display: flex;
         flex-flow: column nowrap;
         grid-gap: 15px;
-        margin: 25px;
+        margin: 15px 25px;
 
         > .course {
             grid-area: course;

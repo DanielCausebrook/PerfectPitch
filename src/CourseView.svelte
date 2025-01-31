@@ -11,10 +11,8 @@
     } from "./course";
     import {ClubType, getClubData} from "./club";
     import Cell from "./Cell.svelte";
-    import {timeout} from "./utilities";
     import type {Player} from "./player";
     import {rotateDirection} from "./course.js";
-    import {onMount} from "svelte";
 
     export let course: Course;
     export let ballPos: Position|null = null;

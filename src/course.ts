@@ -1,12 +1,7 @@
 import {MersenneTwister19937, Random} from "random-js";
 import {SoundEffect} from "./soundEffect";
 import {
-    buildMap,
-    gaussianBlur,
-    generateTeeAndHolePos, generateTerrain,
-    generateTerrainDebug,
-    loopErasedRandomWalk,
-    ValMapBuilder
+    generateTeeAndHolePos, generateTerrain, Matrix2D,
 } from "./terrainGeneration";
 
 export type Position = [number, number];
@@ -82,37 +77,33 @@ export enum Direction {
 }
 
 export class Course {
-    #height: number;
-    #width: number;
-    #layout: CellType[][];
+    #layout: Matrix2D<CellType>;
     #holePos: Position;
     #teePos: Position;
 
-    constructor(height: number, width: number, layout: CellType[][], holePos: Position, teePos: Position) {
-        this.#height = height;
-        this.#width = width;
+    constructor(layout: Matrix2D<CellType>, holePos: Position, teePos: Position) {
         this.#layout = layout;
         this.#holePos = holePos;
         this.#teePos = teePos;
     }
 
-    static generate(width: number, height: number, rng: Random): Course {
-        let [teePos, holePos] = generateTeeAndHolePos(width, height, new Random(MersenneTwister19937.seed(rng.uint32())));
-        let map = generateTerrain(width, height, teePos,  holePos, new Random(MersenneTwister19937.seed(rng.uint32())));
+    static generate(width: number, height: number, xEdge: number, yEdge: number, rng: Random): Course {
+        let [teePos, holePos] = generateTeeAndHolePos(width, height, xEdge, yEdge, new Random(MersenneTwister19937.seed(rng.uint32())));
+        let map = generateTerrain(width, height, xEdge, yEdge, teePos,  holePos, new Random(MersenneTwister19937.seed(rng.uint32())));
 
-        return new Course(height, width, map, holePos, teePos);
+        return new Course(map, holePos, teePos);
     }
 
     height(): number {
-        return this.#height;
+        return this.#layout.height;
     }
 
     width(): number {
-        return this.#width;
+        return this.#layout.width;
     }
 
     cell(position: Position): CellType {
-        return this.#layout[position[0]][position[1]];
+        return this.#layout.data[position[0]][position[1]];
     }
 
     tee(): Position {
@@ -122,7 +113,7 @@ export class Course {
     isValidPosition(position: Position): boolean {
         const x = position[0];
         const y = position[1];
-        return x >= 0 && y >= 0 && x < this.#width && y < this.#height;
+        return x >= 0 && y >= 0 && x < this.width() && y < this.height();
     }
 }
 

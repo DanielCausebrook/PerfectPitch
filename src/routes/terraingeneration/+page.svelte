@@ -7,35 +7,33 @@
         generateTeeAndHolePos, generateTerrainDebug,
         TerrainDebugBool, TerrainDebugRadioGroup,
     } from "../../terrainGeneration";
-    import {TerrainDebugNumber} from "../../terrainGeneration.js";
+    import {type Matrix2D, TerrainDebugNumber} from "../../terrainGeneration.js";
 
     let canvases: {element: HTMLCanvasElement|null}[] = Array(24).fill(null).map(() => {return {element: null}});
     let seed = MersenneTwister19937.autoSeed().next();
     const width = 20;
-    const height = 20;
+    const height = 22;
+    const xEdge = 1;
+    const yEdge = 2;
     const detail = 5;
     const cellDimensions = 10;
 
     const debugSettings = createTerrainDebugSettings();
 
-    function renderMap(map: CellType[][]|DebugMap, ctx: CanvasRenderingContext2D) {
+    function renderMap(map: Matrix2D<CellType>|DebugMap, ctx: CanvasRenderingContext2D) {
         if (map instanceof DebugMap) {
             map.map.forEach((col, x) => col.forEach((value, y) => {
                 let numValue = 0;
                 if (typeof value == "number") {
                     numValue = value;
                 } else if (typeof value == "boolean") {
-                    numValue = value ? 1 : -1;
+                    numValue = value ? 1 : 0;
                 }
-                if (numValue < 0) {
-                    ctx.fillStyle = `hsl(0, 50%, ${-Math.min(1, -numValue)*50 + 100}%)`;
-                } else {
-                    ctx.fillStyle = `hsl(240, 50%, ${-Math.min(1, numValue)*50 + 100}%)`;
-                }
+                ctx.fillStyle = `color-mix(in oklch, hsl(0, 50%, 50%) ${numValue*100}%, hsl(240, 50%, 50%))`;
                 ctx.fillRect(x*cellDimensions, y*cellDimensions, cellDimensions, cellDimensions);
             }));
         } else {
-            map.forEach((col, x) => col.forEach((cell, y) => {
+            map.data.forEach((col, x) => col.forEach((cell, y) => {
                 ctx.fillStyle = getCellData(cell).primaryColor;
                 ctx.fillRect(x*cellDimensions, y*cellDimensions, cellDimensions, cellDimensions);
             }));
@@ -56,8 +54,8 @@
             let canvasElem = canvas.element;
             let ctx = canvasElem?.getContext("2d") ?? null;
             if (canvasElem !== null && ctx !== null) {
-                let [teePos, holePos] = generateTeeAndHolePos(width, height, new Random(MersenneTwister19937.seed(rng.uint32())));
-                let map = generateTerrainDebug(width, height, teePos,  holePos, new Random(MersenneTwister19937.seed(rng.uint32())), debugSettings);
+                let [teePos, holePos] = generateTeeAndHolePos(width, height, xEdge, yEdge, new Random(MersenneTwister19937.seed(rng.uint32())));
+                let map = generateTerrainDebug(width, height, xEdge, yEdge, teePos,  holePos, new Random(MersenneTwister19937.seed(rng.uint32())), debugSettings);
                 renderMap(map, ctx);
             }
         }
@@ -134,7 +132,7 @@
                 flex-flow: row nowrap;
                 gap: 5px;
                 margin-top: 8px;
-                width: 150px;
+                width: 160px;
 
                 &.radio {
                     margin-left: 3px;
