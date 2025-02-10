@@ -76,13 +76,15 @@
         </div>
     </header>
     <main>
-        {#key course}
-            {#if course !== null}
-                <Round course={course} player={player} onCompletion={nextRound} />
-            {:else}
-                <div class="loading">Generating...</div>
-            {/if}
-        {/key}
+        <div>
+            {#key course}
+                {#if course !== null}
+                    <Round course={course} player={player} onCompletion={nextRound} />
+                {:else}
+                    <div class="loading">Generating...</div>
+                {/if}
+            {/key}
+        </div>
     </main>
 </div>
 <style>
@@ -90,10 +92,11 @@
         flex: 1 1 auto;
         display: grid;
         grid-template:
-      "header header header" auto
-      ". main ." 1fr
-      / 1fr auto 1fr;
-        height: 100vh;
+            "header header header" auto
+            "main main main" 1fr
+            / 1fr minmax(auto, 1fr) 1fr;
+        max-height: 100%;
+        overflow: clip;
 
         > header {
             grid-area: header;
@@ -117,6 +120,7 @@
                     flex: 1 1 auto;
                     font-size: 24pt;
                 }
+
                 > .new-round {
                     flex: 0 1 auto;
                     display: flex;
@@ -137,6 +141,7 @@
                             cursor: default;
                         }
                     }
+
                     > .seed-input {
                         display: flex;
                         flex-flow: row nowrap;
@@ -147,10 +152,12 @@
                         &:focus-within {
                             outline-color: hsl(0, 0%, 50%);
                         }
+
                         > button {
                             border-radius: 0 2px 2px 0;
 
                         }
+
                         > input {
                             background: hsl(0, 0%, 20%);
                             border: none;
@@ -159,6 +166,7 @@
                             color: hsl(0, 0%, 80%);
                             font-family: inherit;
                             font-weight: inherit;
+
                             &:focus {
                                 outline: none;
                             }
@@ -168,20 +176,26 @@
             }
 
         }
+
         > main {
             grid-area: main;
-            align-self: start;
-            max-width: 1280px;
-            max-height: 100%;
-            min-height: 100%;
+            display: grid;
+            grid-template-columns: subgrid;
             overflow-y: auto;
+            overflow-x: hidden;
 
-            > .loading {
-                color: hsl(0, 0%, 30%);
-                font-size: 42pt;
-                margin: 20px;
-                text-align: center;
+            > div {
+                grid-column: 2 / span 1;
+                max-width: 1280px;
+
+                > .loading {
+                    color: hsl(0, 0%, 30%);
+                    font-size: 42pt;
+                    margin: 20px;
+                    text-align: center;
+                }
             }
+
         }
     }
 </style>
