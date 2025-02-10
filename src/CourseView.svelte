@@ -16,7 +16,6 @@
 
     export let course: Course;
     export let ballPos: Position|null = null;
-    export let selectedClub: ClubType|null;
 
     function createEmptyCellButtons() {
         let arr = [];
@@ -27,11 +26,9 @@
     }
 
     let cellButtons: ({listener: () => void, direction: Direction}|null)[][] = createEmptyCellButtons();
-    let shotModifier: number = 0;
     let cellElements: HTMLElement[][] = Array(course.width()).map(() => Array(course.height()));
 
     export const selectDirection = (player: Player): Promise<Direction> => {
-        shotModifier = (selectedClub !== null && getClubData(selectedClub).noShotModifier()) ? 0 : getCellData(course.cell(player.position)).shotModifier;
         return new Promise(resolve => {
             for (const direction of [Direction.N, Direction.NE, Direction.E, Direction.SE, Direction.S, Direction.SW, Direction.W, Direction.NW]) {
                 let position = moveInDirection(player.position, direction);

@@ -11,16 +11,14 @@
         rotateDirection
     } from "./course";
     import CourseView from "./CourseView.svelte";
-    import ClubSelector from "./ClubSelector.svelte";
-    import DiceRoller from "./DiceRoller.svelte";
-    import {ClubType, getClubData} from "./club.js";
+    import {type ClubData, ClubType, getClubData} from "./club.js";
     import {onMount} from "svelte";
     import {timeout} from "./utilities";
-    import ClubInfo from "./ClubInfo.svelte";
     import {IconArrowRight} from "@tabler/icons-svelte";
     import {bool, nativeMath, pick} from "random-js";
     import {SoundEffect} from "./soundEffect";
     import type {Player} from "./player";
+    import ClubSelector from "./ClubSelector.svelte";
 
     export let course: Course;
     export let player: Player;
@@ -28,14 +26,9 @@
 
     const holesPerGame:number = 4;
 
-    let hoveredClub: ClubType|null = null;
-    let selectedClub: ClubType|null = null;
-    let requestClub: (cellType: CellType, onSelect?: (clubType: ClubType) => void) => Promise<ClubType>;
-    let cancelClubRequest: () => void;
-
-    let rollDice: () => number|null;
-    let startDiceAnimation: () => void;
-    let stopDiceAnimation: (at?: number) => void;
+    let enableClubSelect = false;
+    let selectedClub: ClubData|null;
+    let onSelectClub: ((clubData: ClubData) => void)|null = null;
 
     let selectDirection: (player: Player) => Promise<Direction>;
     let playAnimation: (pos: Position, animation: CellAnimation) => void;
@@ -58,24 +51,26 @@
     }
 
     let win: boolean = false;
-    let diceFaces: number[]|null = null;
     let showBall: boolean = true;
 
     async function takeTurn() {
         selectedClub = null;
-        selectedClub = await requestClub(course.cell(player.position), (clubType: ClubType) => {
-            selectedClub = clubType;
-            diceFaces = getClubData(clubType).diceFaces();
+        selectedClub = await new Promise<ClubData>((resolve, reject) => {
+            enableClubSelect = true;
+            onSelectClub = (clubData) => {
+                selectedClub = clubData;
+                SoundEffect.select.play();
+                resolve(clubData);
+            };
         });
-        startDiceAnimation();
 
         let direction = await selectDirection(player);
-        cancelClubRequest();
-        let clubData = getClubData(selectedClub);
+        enableClubSelect = false;
+        let clubData = selectedClub;
         clubData.soundEffect(course.cell(player.position)).play();
         player.addStroke();
 
-        let diceRoll = rollDice();
+        let diceRoll = pick(nativeMath, clubData.diceFaces());
         if (diceRoll === null) {
             throw new Error("Move was null.");
         }
@@ -86,9 +81,6 @@
 
         function updatePosition(pos: Position) {
             player.position = pos;
-            if (distanceBounced === 0) {
-                stopDiceAnimation(distanceMoved);
-            }
         }
 
         let startingPosition = player.position;
@@ -121,7 +113,7 @@
                 cellData.blockSoundEffect?.play();
                 movementRemaining = 0;
                 break;
-            } else if (cellData.blockType === CellBlockType.Stick && !clubData.noStick()) {
+            } else if (cellData.blockType === CellBlockType.Stick && clubData.sticks()) {
                 updatePosition(newPosition);
                 await timeout(200);
                 if (movementRemaining > 0) {
@@ -132,7 +124,7 @@
                 break;
             }
             updatePosition(newPosition);
-            if (movementRemaining === 0 && distanceBounced < cellData.rollDistance && clubData.allowsRolls()) {
+            if (movementRemaining === 0 && distanceBounced < cellData.rollDistance && clubData.bounces()) {
                 interactAnimation(newPosition, cellData.primaryColor, 0.5, direction);
                 distanceBounced++;
                 movementRemaining++;
@@ -143,7 +135,6 @@
                 await timeout(500 - movementRemaining * 60);
             }
         }
-        stopDiceAnimation(diceRoll);
         let cell = course.cell(player.position);
         let cellData = getCellData(cell);
         if (distanceMoved > 0) {
@@ -185,79 +176,34 @@
             <div class="total-score">{player.totalStrokes()}</div>
         </div>
     </div>
-    <div class="course">
-        <CourseView course={course} ballPos={showBall ? player.position : null} bind:selectedClub={selectedClub} bind:selectDirection={selectDirection} bind:playAnimation={playAnimation} bind:winAnimation={winAnimation} />
-    </div>
-    <div class="status">
-        <div class="dice-roll">
-            <DiceRoller diceFaces={diceFaces} bind:startAnimation={startDiceAnimation} bind:stopAnimation={stopDiceAnimation} bind:roll={rollDice} />
-        </div>
-        <div class="info">
-            {#if win}
-                <div class="win">
-                    <span>Congratulations!</span>
-                    {#if player.round() >= player.numRounds() - 1}
-<!--                        <IconClipboardList size="36" stroke="3"/>-->
-                    {:else}
-                        <button type="button" onclick={() => onCompletion()}>
-                            <IconArrowRight stroke="4" />
-                        </button>
-                    {/if}
-                </div>
-            {:else if hoveredClub !== null}
-                <ClubInfo clubType={hoveredClub} cellType={course.cell(player.position)} />
-            {:else if selectedClub !== null}
-                <ClubInfo clubType={selectedClub} cellType={course.cell(player.position)} />
+    <CourseView course={course} ballPos={showBall ? player.position : null} bind:selectDirection={selectDirection} bind:playAnimation={playAnimation} bind:winAnimation={winAnimation} />
+    {#if win}
+        <div class="win">
+            <span>Congratulations!</span>
+            {#if player.round() >= player.numRounds() - 1}
+                <!--                        <IconClipboardList size="36" stroke="3"/>-->
+            {:else}
+                <button type="button" class="standard-button" onclick={() => onCompletion()}>
+                    <IconArrowRight stroke="4" />
+                </button>
             {/if}
         </div>
-    </div>
-    <div class="club-selector">
-        <ClubSelector bind:request={requestClub} bind:cancel={cancelClubRequest} bind:hoveredClub={hoveredClub} />
-    </div>
+    {:else}
+        <ClubSelector
+                clubs={ [ClubType.Putter, ClubType.Wedge, ClubType.Iron, ClubType.Driver].map(c => {let data = getClubData(c); return {data: data, enabled: data.canUseOn(course.cell(player.position))}}) }
+                enabled={enableClubSelect}
+                bind:selectedClub={selectedClub}
+                bind:onSelect={onSelectClub}
+        />
+    {/if}
 </article>
 
 <style>
     article {
         display: flex;
         flex-flow: column nowrap;
-        grid-gap: 15px;
         margin: 15px 25px;
-
-        > .course {
-            grid-area: course;
-        }
-        > .status {
-            display: flex;
-            flex-flow: row nowrap;
-            > .dice-roll {
-                flex: 0 0 auto;
-            }
-            > .info {
-                flex: 1 1 auto;
-                 align-self: center;
-                 > .win {
-                     display: flex;
-                     flex-flow: row nowrap;
-                     align-items: center;
-                     justify-content: space-evenly;
-                     > span {
-                         font-size: 24pt;
-                         color: hsl(210, 80%, 80%);
-                     }
-                     > button {
-                         display: flex;
-                         flex-flow: row nowrap;
-                         align-items: center;
-                         justify-content: center;
-                         gap: 10px;
-                         position: relative;
-                         padding: 8px 16px;
-                         background: hsl(210, 70%, 50%);
-                         border-radius: 5px;
-                     }
-                 }
-             }
-        }
+        gap: 10px;
 
         > .header {
             display: flex;
@@ -272,10 +218,6 @@
                 font-size: 18pt;
                 color: hsl(0, 0%, 60%);
                 width: 100px;
-                padding: 5px 10px;
-            }
-            > .stroke-counter {
-                font-size: 22pt;
                 padding: 5px 10px;
             }
             > .scoreboard {
@@ -318,7 +260,31 @@
                     }
                 }
             }
+        }
 
+        > .win {
+            display: flex;
+            flex-flow: row nowrap;
+            align-items: center;
+            justify-content: space-evenly;
+            height: 170px;
+
+            > span {
+                font-size: 24pt;
+                color: hsl(210, 80%, 80%);
+            }
+
+            > button {
+                display: flex;
+                flex-flow: row nowrap;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                position: relative;
+                padding: 8px 16px;
+                background: hsl(210, 70%, 50%);
+                border-radius: 5px;
+            }
         }
     }
 </style>

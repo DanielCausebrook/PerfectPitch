@@ -1,5 +1,6 @@
 import {CellType} from "./course";
 import {SoundEffect} from "./soundEffect";
+import {type Icon, IconArrowBigRight, IconCone, IconDiamonds, IconPoint} from "@tabler/icons-svelte";
 
 export enum ClubType {
     Putter,
@@ -9,31 +10,50 @@ export enum ClubType {
 }
 
 export class ClubData {
+    #name: string;
+    #icon: Icon;
     #diceFaces: number[];
-    #bounces: boolean;
-    #noStick: boolean;
-    #noShotModifier: boolean;
+    #bounces: boolean = true;
+    #sticks: boolean = true;
+    #noShotModifier: boolean = false;
     #canUseOn: CellType[];
     #defaultSoundEffect: SoundEffect;
     #soundEffectOverrides: Map<CellType, SoundEffect> = new Map();
 
-    constructor(diceFaces: number[], bounces: boolean, noStick:boolean, noShotModifier: boolean, canUseOn: CellType[], defaultSoundEffect: SoundEffect) {
+    constructor(name: string, icon: Icon, diceFaces: number[], canUseOn: CellType[], defaultSoundEffect: SoundEffect) {
+        this.#name = name;
+        this.#icon = icon;
         this.#diceFaces = diceFaces;
-        this.#bounces = bounces;
-        this.#noStick = noStick;
-        this.#noShotModifier = noShotModifier;
         this.#canUseOn = canUseOn;
         this.#defaultSoundEffect = defaultSoundEffect;
     }
 
+    name(): string {
+        return this.#name;
+    }
+    icon(): Icon {
+        return this.#icon;
+    }
     diceFaces(): number[] {
         return this.#diceFaces;
     }
-    allowsRolls(): boolean {
+    setBounces(bounces: boolean): this {
+        this.#bounces = bounces;
+        return this;
+    }
+    bounces(): boolean {
         return this.#bounces;
     }
-    noStick(): boolean {
-        return this.#noStick;
+    setSticks(sticks: boolean): this {
+        this.#sticks = sticks;
+        return this;
+    }
+    sticks(): boolean {
+        return this.#sticks;
+    }
+    setNoShotModifier(noShotModifier: boolean): this {
+        this.#noShotModifier = noShotModifier;
+        return this;
     }
     noShotModifier(): boolean {
         return this.#noShotModifier;
@@ -55,11 +75,15 @@ export class ClubData {
 
 export function getClubData(clubType: ClubType) {
     switch (clubType) {
-        case ClubType.Putter: return new ClubData([1, 1, 1, 1, 2], false, false, true, [CellType.Fairway], SoundEffect.putter);
-        case ClubType.Wedge: return new ClubData([1, 2, 2, 3, 3], false, true, false, [CellType.Fairway, CellType.Rough, CellType.Tree, CellType.Sand], SoundEffect.wedge)
+        case ClubType.Putter: return new ClubData('Putter', IconPoint, [1, 1, 1, 1, 2], [CellType.Fairway], SoundEffect.putter)
+            .setBounces(false)
+            .setNoShotModifier(true);
+        case ClubType.Wedge: return new ClubData('Wedge', IconCone, [1, 2, 2, 3, 3], [CellType.Fairway, CellType.Rough, CellType.Tree, CellType.Sand], SoundEffect.wedge)
+            .setBounces(false)
+            .setSticks(false)
             .overrideSoundEffect(CellType.Sand, SoundEffect.sandWedge);
-        case ClubType.Iron: return new ClubData([3, 3, 4, 4, 5], true, false, false, [CellType.Fairway, CellType.Rough, CellType.Tree], SoundEffect.iron);
-        case ClubType.Driver: return new ClubData([4, 5, 6, 7, 8], true, false, false, [CellType.Fairway, CellType.Rough], SoundEffect.driver);
+        case ClubType.Iron: return new ClubData('Iron', IconDiamonds, [3, 3, 4, 4, 5], [CellType.Fairway, CellType.Rough, CellType.Tree], SoundEffect.iron);
+        case ClubType.Driver: return new ClubData('Driver', IconArrowBigRight, [4, 5, 6, 7, 8], [CellType.Fairway, CellType.Rough], SoundEffect.driver);
     }
 }
 

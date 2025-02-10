@@ -65,11 +65,11 @@
             <div class="new-round">
                 <form class="seed-input" onsubmit={seedGame}>
                     <input type="text" onfocus={e => e.currentTarget.select()} bind:value={seedStringInput} size="12" />
-                    <button type="submit" onclick={seedGame} disabled={seedStringInput === ''}>
+                    <button type="submit" class="standard-button" onclick={seedGame} disabled={seedStringInput === ''}>
                         <IconSeedling size="16" stroke="3"/>
                     </button>
                 </form>
-                <button type="button" onclick={randomGame}>
+                <button type="button" class="standard-button" onclick={randomGame}>
                     <IconDice3Filled size="16" stroke="3" />
                 </button>
             </div>

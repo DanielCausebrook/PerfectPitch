@@ -8,6 +8,11 @@ import bunker from '$lib/licensed/sports golfing golf ball land in hazzard sand 
 import water from '$lib/licensed/sports golfing golf ball land in water hazzard 03.mp3';
 import tree from '$lib/licensed/sports golfing golf ball hit tree then ground 03.mp3';
 import hole from '$lib/licensed/sports golfing golf ball drops falls in hole 01.mp3';
+import select1 from '$lib/licensed/sports golfing golf bag putting away club 12v2.mp3';
+import select2 from '$lib/licensed/sports golfing golf bag putting away club 18.mp3';
+import select3 from '$lib/licensed/sports golfing golf bag putting away club 04.mp3';
+import select4 from '$lib/licensed/sports golfing golf bag putting away club 12+04.mp3';
+import select5 from '$lib/licensed/sports golfing golf bag putting away club 07.mp3';
 
 const audioContext = browser ? new AudioContext() : null;
 
@@ -21,6 +26,7 @@ export class SoundEffect {
     static water = new SoundEffect(water, 0.7);
     static tree = new SoundEffect(tree, 0.3);
     static hole = new SoundEffect(hole, 0.6);
+    static select = new SoundEffect(select1, 0.15);
 
     audio: HTMLAudioElement|null = null;
     track: MediaElementAudioSourceNode|null = null;
