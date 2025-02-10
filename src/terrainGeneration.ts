@@ -485,6 +485,7 @@ export function createTerrainDebugSettings() {
             .addOption('f', 'Fairway')
             .addOption('t', 'Trees')
             .addOption('s', 'Sand')
+            .addOption('noise', 'Noise')
         )
         .addSetting(new TerrainDebugRadioGroup('mapStage', 'Map Stage', 'end', 'End')
             .addOption('1', '1')
@@ -509,6 +510,8 @@ export class DebugMap {
 
 export function generateTerrainDebug(width: number, height: number, xEdge: number, yEdge: number, teePos: Position, holePos: Position, rng: Random, debug?: TerrainDebugSettings): Matrix2D<CellType> | DebugMap {
     let mB = new ValMapBuilder(width, height, rng);
+
+    if (debug?.is('map', 'noise')) return new DebugMap(mB.buildLoopyNoiseMap(10, 5, 20, 2, 45, 0.03).inner);
 
     let edgeProximityMap = mB.buildMap((x, y) => {
         let edgeProximity = 1;
@@ -580,7 +583,7 @@ export function generateTerrainDebug(width: number, height: number, xEdge: numbe
 
     let landMap = mB.prod(
         mB.prod(
-            mB.buildWarpNoiseMap(10, 10, 2.5),
+            mB.buildWarpNoiseMap(7, 8, 2.5),
             edgeProximityMap.copy().pinch(0.2, 1),
         ).invert(),
         endsMap.copy().invert(),
