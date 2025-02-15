@@ -1,5 +1,5 @@
 <script lang="ts">
-    import {type ClubData} from "./club";
+    import {type Club} from "./club";
     import Cell from "./Cell.svelte";
     import Dice from "./Dice.svelte";
     import {
@@ -9,11 +9,11 @@
     } from "@tabler/icons-svelte";
 
     export let enabled = true;
-    export let clubs: {data: ClubData, enabled: boolean}[];
-    export let selectedClub: ClubData|null = null;
-    export let onSelect: ((clubData: ClubData) => void)|null = null;
+    export let clubs: {data: Club, enabled: boolean}[];
+    export let selectedClub: Club|null = null;
+    export let onSelect: ((clubData: Club) => void)|null = null;
 
-    function changeClub(clubType: ClubData) {
+    function changeClub(clubType: Club) {
         if (clubType !== selectedClub) {
             selectedClub = clubType;
             if (onSelect !== null) onSelect(clubType);
@@ -32,7 +32,7 @@
                 <div class="details">
                     <ul class="terrain">
                         {#each club.data.cellTypes() as allowedCellType}
-                            <li><Cell cellType={allowedCellType} size={20} borderRadius={6} /></li>
+                            <li><Cell cellType={allowedCellType} size={20} /></li>
                         {/each}
                         {#if !club.data.sticks()}
                             <li><IconPlaneTilt size={20} /></li>
@@ -62,7 +62,7 @@
             / [start] 130px [mid] 1fr [end];
         list-style: none;
         margin: 0;
-        padding: 0 5px 0 0;
+        padding: 0;
         grid-gap: 4px 10px;
 
         > li {
@@ -71,33 +71,35 @@
             grid-template-columns: subgrid;
             position: relative;
 
-            &.selected.selected.selected {
+            &.selected {
                 > .selection-marker {
                     opacity: 1;
                     transform: translateX(-10px);
-
                 }
                 > button {
                     transform: translateX(15px);
                     background: hsl(0, 0%, 95%);
-                    opacity: 0.9;
+                    filter: brightness(90%);
                 }
             }
             &.disabled {
                 > button {
-                    opacity: 0.6;
-                    filter: contrast(0.5);
-                    transition: transform 0.15s ease, opacity 0.15s ease;
+                    filter: contrast(0.5) brightness(0.6);
+                    transition: transform 0.15s ease, filter 0.15s ease;
                 }
             }
             &:not(.disabled) {
                 > button {
                     cursor: pointer;
                     &:hover {
-                        transform: translateX(8px);
                         opacity: 1;
-                        transition: transform 0.7s cubic-bezier(.02,1.5,.1,1);
                     }
+                }
+            }
+            &:not(.disabled):not(.selected) {
+                > button:hover {
+                    transform: translateX(8px);
+                    transition: transform 0.7s cubic-bezier(.02,1.5,.1,1);
                 }
             }
             > .selection-marker {
@@ -120,10 +122,10 @@
                 color: hsl(0, 0%, 5%);
                 padding: 0 6px;
                 border-radius: 4px;
-                transition: transform 0.3s ease, opacity 0.3s ease;
+                transition: transform 0.3s ease, filter 0.3s ease;
                 transform: translateX(0);
                 border: none;
-                opacity: 0.85;
+                filter: brightness(0.85);
 
                 .title {
                     display: flex;

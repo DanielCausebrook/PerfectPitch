@@ -11,28 +11,26 @@
 
     export let cellType: CellType;
     export let hasBall: boolean = false;
-    export let size: number = 20;
-    export let borderRadius: number = 3;
+    export let size: number|null = null;
 
-    let cellIconSize = size - 2;
     let cellData = getCellData(cellType);
 
 </script>
-<div class="cell" style="width:{size}px; height:{size}px; background:{cellData.primaryColor}; border-radius:{borderRadius}px;">
+<div class="cell" style="{size === null ? 'width:100%;  height: 100%; ' : `width:${size}px; height:${size}px; `}background:{cellData.primaryColor};">
     {#if hasBall}
-        <IconInnerShadowTopLeftFilled size={cellIconSize} />
+        <IconInnerShadowTopLeftFilled size="90%" />
     {:else if cellType === CellType.Rough}
-        <IconBackground size={cellIconSize} color="hsl(120, 60%, 20%)" />
+        <IconBackground size="90%" color="hsl(120, 60%, 20%)" />
     {:else if cellType === CellType.Tree}
-        <IconChristmasTreeFilled size={cellIconSize} color="hsl(120, 60%, 10%)" />
+        <IconChristmasTreeFilled size="90%" color="hsl(120, 60%, 10%)" />
     {:else if cellType === CellType.Rock}
-        <IconSquareXFilled size={cellIconSize} color="hsl(0, 0%, 37%)" stroke="3" />
+        <IconSquareXFilled size="90%" color="hsl(0, 0%, 37%)" stroke="3" />
     {:else if cellType === CellType.Hole}
-        <IconGolf size={cellIconSize + 2} stroke="3" color="hsl(180, 80%, 70%)" />
+        <IconGolf size="100%" stroke="3" color="hsl(180, 80%, 70%)" />
     {:else if cellType === CellType.Water}
-        <IconRipple size={cellIconSize} color="hsl(210, 50%, 45%)" />
+        <IconRipple size="90%" color="hsl(210, 50%, 45%)" />
     {:else if cellType === CellType.Sand}
-        <IconGrain size={cellIconSize} color="hsl(55, 50%, 50%)"/>
+        <IconGrain size="90%" color="hsl(55, 50%, 50%)"/>
     {/if}
 </div>
 <style>
@@ -40,5 +38,6 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        border-radius: 15%;
     }
 </style>

@@ -9,7 +9,7 @@ export enum ClubType {
     Wedge,
 }
 
-export class ClubData {
+export class Club {
     #name: string;
     #icon: Icon;
     #diceFaces: number[];
@@ -73,17 +73,26 @@ export class ClubData {
     }
 }
 
-export function getClubData(clubType: ClubType) {
-    switch (clubType) {
-        case ClubType.Putter: return new ClubData('Putter', IconPoint, [1, 1, 1, 1, 2], [CellType.Fairway], SoundEffect.putter)
+const clubs = new Map([
+    [ClubType.Putter,
+        new Club('Putter', IconPoint, [1, 1, 1, 1, 2], [CellType.Fairway], SoundEffect.putter)
             .setBounces(false)
-            .setNoShotModifier(true);
-        case ClubType.Wedge: return new ClubData('Wedge', IconCone, [1, 2, 2, 3, 3], [CellType.Fairway, CellType.Rough, CellType.Tree, CellType.Sand], SoundEffect.wedge)
+            .setNoShotModifier(true)
+    ],
+    [ClubType.Wedge,
+        new Club('Wedge', IconCone, [1, 2, 2, 3, 3], [CellType.Fairway, CellType.Rough, CellType.Tree, CellType.Sand], SoundEffect.wedge)
             .setBounces(false)
             .setSticks(false)
-            .overrideSoundEffect(CellType.Sand, SoundEffect.sandWedge);
-        case ClubType.Iron: return new ClubData('Iron', IconDiamonds, [3, 3, 4, 4, 5], [CellType.Fairway, CellType.Rough, CellType.Tree], SoundEffect.iron);
-        case ClubType.Driver: return new ClubData('Driver', IconArrowBigRight, [4, 5, 6, 7, 8], [CellType.Fairway, CellType.Rough], SoundEffect.driver);
-    }
-}
+            .overrideSoundEffect(CellType.Sand, SoundEffect.sandWedge)
+    ],
+    [ClubType.Iron,
+        new Club('Iron', IconDiamonds, [3, 3, 4, 4, 5], [CellType.Fairway, CellType.Rough, CellType.Tree], SoundEffect.iron)
+    ],
+    [ClubType.Driver,
+        new Club('Driver', IconArrowBigRight, [4, 5, 6, 7, 8], [CellType.Fairway, CellType.Rough], SoundEffect.driver)
+    ]
+])
 
+export function getClub(clubType: ClubType): Club {
+    return clubs.get(clubType) as Club;
+}

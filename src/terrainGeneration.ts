@@ -30,6 +30,10 @@ export class Matrix2D<T> {
         return new Matrix2D(data, width, height);
     }
 
+    get(x: number, y: number): T {
+        return this.data[x][y];
+    }
+
     copy() {
         return new Matrix2D(this.data.map(col => col.slice()), this.width, this.height);
     }
