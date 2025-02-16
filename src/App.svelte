@@ -70,7 +70,7 @@
 </script>
 <div class="app">
     <header>
-        <h1>Daily Driver</h1>
+        <h1>Perfect Pitch</h1>
         <div class="buttons">
             <button type="button" class="standard-button" onclick={randomGame}>
                 <IconDice3 size="24" stroke="2" />
