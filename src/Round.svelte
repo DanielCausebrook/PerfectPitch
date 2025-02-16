@@ -217,6 +217,7 @@
     const onSelectClub: (club: Club) => void = club => {
         numDirectionHighlights = Math.round(club.diceFaces().reduce((a, b) => Math.max(a,b)));
         updateCellDirectionHighlight();
+        SoundEffect.select.play();
         clubRequest?.resolve(club);
     };
 
