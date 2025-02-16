@@ -349,7 +349,7 @@
         if (clubRequest !== null) {
             let i = 1;
             for (const club of clubs.values()) {
-                if (event.key === i.toString()) {
+                if (event.key === i.toString() && club.canUseOn(course.cell(player.position))) {
                     selectedClub = club;
                     onSelectClub(club);
                     return;
