@@ -19,167 +19,194 @@
     export let course: Course = new Course(Matrix2D.of(22, 22, CellType.Water), [10, 10], [11, 11]);
     export let player: Player = new Player([10, 10], 4);
 
+    const listenerRemovers: (() => void)[] = [];
+
     let cells: Matrix2D<HTMLElement> = Matrix2D.of(course.width(), course.height(), null) as unknown as Matrix2D<HTMLElement>;
     function registerCell(element: HTMLElement, data: Position) {
         cells.data[data[0]][data[1]] = element;
     }
 
-    type DirectionRequest = {
-        resolve: (direction: Direction) => void,
-        dragCenter: Position|null,
-        dragCenterRelativeToGrid: Position|null,
-        currentDragDirection: Direction|null,
-        touchId: number|null,
-    }
-    let board: HTMLElement;
-    let directionRequest: DirectionRequest|null = null;
-    let directionHighlightCells: Map<string, number> = new Map();
-    let numDirectionHighlights: number = 0;
-    const deadZone = 35;
+    class DirectionRequest {
+        #resolve: (direction: Direction) => void;
+        #onChange: (request: DirectionRequest) => void;
+        dragCenter: Position|null = null;
+        currentDragDirection: Direction|null = null;
+        touchId: number|null = null;
+        static readonly deadZone = 35;
 
-    async function selectDirection(): Promise<Direction> {
-        return new Promise((resolve, reject) => {
-            directionRequest = {
-                resolve: resolve,
-                dragCenter: null,
-                dragCenterRelativeToGrid: null,
-                currentDragDirection: null,
-                touchId: null,
-            };
-        });
-    }
-
-    function dragStart(coordinates: Position) {
-        if (directionRequest !== null) {
-            directionRequest.dragCenter = coordinates.slice() as Position;
-            directionRequest.dragCenterRelativeToGrid = [coordinates[0] - board.offsetLeft - board.clientLeft, coordinates[1] - board.offsetTop - board.clientTop];
-            directionRequest.currentDragDirection = null;
+        constructor(resolve: (direction: Direction) => void, onChange: (request: DirectionRequest) => void) {
+            this.#resolve = resolve;
+            this.#onChange = onChange;
         }
-    }
-
-    function dragMove(coordinates: Position) {
-        if (directionRequest !== null && directionRequest.dragCenter !== null) {
-            let vector = [
-                coordinates[0] - directionRequest.dragCenter[0],
-                coordinates[1] - directionRequest.dragCenter[1],
-            ];
-
-            let distance = Math.hypot(vector[0], vector[1]);
-            if (directionRequest.currentDragDirection === null && distance < deadZone + 5) {
-                return;
-            } else if (distance < deadZone) {
-                directionRequest.currentDragDirection = null;
-                return;
+        #setCurrentDragDirection(direction: Direction|null): void {
+            if (direction !== this.currentDragDirection) {
+                this.currentDragDirection = direction;
+                this.#onChange(this);
             }
+        }
+        dragStart(coordinates: Position, touchId?: number) {
+            if (this.dragCenter === null) {
+                this.dragCenter = coordinates.slice() as Position;
+                this.currentDragDirection = null;
+                this.touchId = touchId ?? null;
+                this.#onChange(this);
+            }
+        }
+        dragMove(coordinates: Position, touchId?: number) {
+            if (this.dragCenter !== null && this.touchId === (touchId ?? null)) {
+                let vector = [
+                    coordinates[0] - this.dragCenter[0],
+                    coordinates[1] - this.dragCenter[1],
+                ];
 
-            let angle = Math.atan2(vector[1], vector[0]);
-            let adjustedAngle = (10 - (4 * angle / Math.PI)) % 8;
-            if (directionRequest.currentDragDirection === null) {
-                directionRequest.currentDragDirection = Math.round(adjustedAngle) % 8;
-                updateCellDirectionHighlight();
-            } else {
-                // Use a dead zone
-                let angleDirectionDiff = Math.abs(adjustedAngle - Math.round(adjustedAngle));
-                if (angleDirectionDiff < 0.45) {
-                    directionRequest.currentDragDirection = Math.round(adjustedAngle) % 8;
-                    updateCellDirectionHighlight();
+                let distance = Math.hypot(vector[0], vector[1]);
+                if (this.currentDragDirection === null && distance < DirectionRequest.deadZone + 5) {
+                    return;
+                } else if (distance < DirectionRequest.deadZone) {
+                    this.#setCurrentDragDirection(null);
+                    return;
+                }
+
+                let angle = Math.atan2(vector[1], vector[0]);
+                let adjustedAngle = (10 - (4 * angle / Math.PI)) % 8;
+                if (this.currentDragDirection === null) {
+                    this.#setCurrentDragDirection(Math.round(adjustedAngle) % 8);
+                } else {
+                    // Use a dead zone
+                    let angleDirectionDiff = Math.abs(adjustedAngle - Math.round(adjustedAngle));
+                    if (angleDirectionDiff < 0.45) {
+                        this.#setCurrentDragDirection(Math.round(adjustedAngle) % 8);
+                    }
                 }
             }
         }
-    }
-
-    function dragEnd(cancel = false) {
-        if (directionRequest !== null && directionRequest.dragCenter !== null) {
-            if (directionRequest.currentDragDirection === null || cancel) {
-                directionRequest.dragCenter = null;
-                directionRequest.dragCenterRelativeToGrid = null;
-                directionRequest.currentDragDirection = null;
-                directionRequest.touchId = null;
-            } else {
-                directionRequest.resolve(directionRequest.currentDragDirection);
-                directionRequest = null;
+        dragEnd(touchId?: number) {
+            if (this.dragCenter !== null && this.touchId === (touchId ?? null)) {
+                if (this.currentDragDirection !== null) {
+                    this.#resolve(this.currentDragDirection);
+                }
+                this.dragCenter = null;
+                this.currentDragDirection = null;
+                this.touchId = null;
+                this.#onChange(this);
             }
         }
+        dragCancel(touchId?: number) {
+            if (this.dragCenter !== null && this.touchId === (touchId ?? null)) {
+                this.dragCenter = null;
+                this.currentDragDirection = null;
+                this.touchId = null;
+                this.#onChange(this);
+            }
+        }
+    }
+    let directionInputElement: HTMLElement;
+    let directionRequest: DirectionRequest|null = null;
+    let relativeDragCenter: Position|null = null;
+    let currentDragDirection: Direction|null = null;
+    let directionHighlightCells: Map<string, number> = new Map();
+    let numDirectionHighlights: number = 0;
+
+    async function selectDirection(): Promise<Direction> {
+        return new Promise(resolve => {
+            directionRequest = new DirectionRequest(
+                direction => {
+                    directionRequest = null;
+                    updateCellDirectionHighlight();
+                    resolve(direction);
+                },
+                request => {
+                    if (request.dragCenter === null) {
+                        relativeDragCenter = null;
+                    } else {
+                        let inputElementPos = [
+                            directionInputElement.offsetLeft + directionInputElement.clientLeft,
+                            directionInputElement.offsetTop + directionInputElement.clientTop,
+                        ];
+                        relativeDragCenter = [request.dragCenter[0] - inputElementPos[0], request.dragCenter[1] - inputElementPos[1]];
+                    }
+                    currentDragDirection = request.currentDragDirection;
+                    updateCellDirectionHighlight();
+                }
+            );
+        });
     }
 
     function updateCellDirectionHighlight() {
         directionHighlightCells.clear();
-        if (directionRequest === null || directionRequest.currentDragDirection === null) {
-            return
+        let direction = directionRequest?.currentDragDirection ?? null;
+        if (direction === null) {
+            directionHighlightCells = directionHighlightCells;
+            return;
         }
         const maxI = numDirectionHighlights + 1
         let highlightPos = player.position;
         for (let i = 0; i < maxI; i++) {
             directionHighlightCells.set(`[${highlightPos[0]}, ${highlightPos[1]}]`, 1 - Math.pow(i/maxI, 3));
-            highlightPos = moveInDirection(highlightPos, directionRequest.currentDragDirection);
+            highlightPos = moveInDirection(highlightPos, direction);
         }
+        directionHighlightCells = directionHighlightCells;
     }
 
-    function cellDirectionHighlight(position: Position): number {
-        if (directionRequest === null || directionRequest.currentDragDirection === null) {
-            return 0;
-        }
-        return directionHighlightCells.get(`[${position[0]}, ${position[1]}]`) ?? 0;
-    }
-
-    function registerGameBoard(element: HTMLElement) {
-        board = element;
-        element.addEventListener("mousedown", event => {
-            if (event.button === 0 && directionRequest !== null && directionRequest.touchId === null) {
-                directionRequest.dragCenter = [event.x, event.y];
-                directionRequest.dragCenterRelativeToGrid = [event.x - board.offsetLeft - board.clientLeft, event.y - board.offsetTop - board.clientTop];
-                directionRequest.currentDragDirection = null;
+    function registerDirectionInputElement(element: HTMLElement) {
+        directionInputElement = element;
+        on(element, "mousedown", event => {
+            if (event.button === 0 && directionRequest !== null) {
+                event.preventDefault();
+                directionRequest.dragStart([event.x, event.y]);
             }
         });
-        document.addEventListener("mouseup", event => dragEnd());
-        document.addEventListener("mousemove", event => {
-            if (directionRequest !== null && directionRequest.touchId === null) {
+        listenerRemovers.push(on(document, "mouseup", event => {
+            if (event.button === 0 && directionRequest !== null) {
+                event.preventDefault();
+                directionRequest.dragEnd();
+            }
+        }));
+        listenerRemovers.push(on(document, "mousemove", event => {
+            if (directionRequest !== null) {
                 if ((event.buttons & 1) !== 1) {
-                    dragEnd();
+                    directionRequest.dragEnd();
                 }
-                dragMove([event.x, event.y]);
+                directionRequest.dragMove([event.x, event.y]);
             }
-        });
+        }));
         element.addEventListener("touchstart", event => {
-            if (directionRequest !== null && directionRequest.dragCenter === null) {
+            if (directionRequest !== null) {
                 event.preventDefault();
                 let touch = event.changedTouches[0];
-                directionRequest.dragCenter = [touch.clientX, touch.clientY];
-                directionRequest.dragCenterRelativeToGrid = [touch.clientX - board.offsetLeft - board.clientLeft, touch.clientY - board.offsetTop - board.clientTop];
-                directionRequest.currentDragDirection = null;
-                directionRequest.touchId = touch.identifier;
+                directionRequest.dragStart([touch.clientX, touch.clientY], touch.identifier);
             }
         });
-        document.addEventListener("touchend", event => {
-            if (directionRequest !== null && directionRequest.dragCenter !== null && directionRequest.touchId !== null) {
+        listenerRemovers.push(on(document, "touchend", event => {
+            if (directionRequest !== null && directionRequest.touchId !== null) {
                 for (const changedTouch of event.changedTouches) {
                     if (changedTouch.identifier === directionRequest.touchId) {
                         event.preventDefault();
-                        dragEnd();
+                        directionRequest.dragEnd(changedTouch.identifier);
                     }
                 }
             }
-        });
-        document.addEventListener("touchcancel", event => {
-            if (directionRequest !== null && directionRequest.dragCenter !== null && directionRequest.touchId !== null) {
+        }));
+        listenerRemovers.push(on(document, "touchcancel", event => {
+            if (directionRequest !== null && directionRequest.touchId !== null) {
                 for (const changedTouch of event.changedTouches) {
                     if (changedTouch.identifier === directionRequest.touchId) {
                         event.preventDefault();
-                        dragEnd(true);
+                        directionRequest.dragCancel(changedTouch.identifier);
                     }
                 }
             }
-        });
-        document.addEventListener("touchmove", event => {
-            if (directionRequest !== null && directionRequest.dragCenter !== null && directionRequest.touchId !== null) {
+        }));
+        listenerRemovers.push(on(document, "touchmove", event => {
+            if (directionRequest !== null && directionRequest.touchId !== null) {
                 for (const changedTouch of event.changedTouches) {
                     if (changedTouch.identifier === directionRequest.touchId) {
                         event.preventDefault();
-                        dragMove([changedTouch.clientX, changedTouch.clientY]);
+                        directionRequest.dragMove([changedTouch.clientX, changedTouch.clientY], changedTouch.identifier);
                     }
                 }
             }
-        });
+        }));
     }
 
     type ClubRequest = { resolve: (clubData: Club) => void };
@@ -332,9 +359,11 @@
     };
 
     onMount(() => {
-        const remove = on(document, 'keypress', clubSelectEventListener);
+        listenerRemovers.push(on(document, 'keypress', clubSelectEventListener));
         return () => {
-            remove();
+            for (const listenerRemover of listenerRemovers) {
+                listenerRemover();
+            }
         }
     });
 </script>
@@ -355,10 +384,10 @@
                 <div class="score total">{player.totalStrokes()}</div>
             </div>
         </div>
-        <div class="grid" use:registerGameBoard style="grid: repeat({course.height()}, 1fr) / repeat({course.width()}, 1fr);">
+        <div class="grid" use:registerDirectionInputElement style="grid: repeat({course.height()}, 1fr) / repeat({course.width()}, 1fr);">
             {#each {length: course.height()} as _, y}
                 {#each {length: course.width()} as _, x}
-                    {@const highlight = cellDirectionHighlight([x, y])}
+                    {@const highlight = directionHighlightCells.get(`[${[x, y][0]}, ${[x, y][1]}]`) ?? 0}
                     <div class="cell" class:direction-highlight={highlight !== 0} style="{highlight !== 0 ? `outline-color: hsl(0, 0%, ${highlight*100}%); `: ''}" use:registerCell={[x, y]}>
                         {#key course}
                             <Cell size={20} cellType={course === null ? CellType.Water : course.cell([x, y])} hasBall={course !== null && showBall && player.position[0] === x && player.position[1] === y} />
@@ -367,10 +396,10 @@
                     </div>
                 {/each}
             {/each}
-            {#if directionRequest !== null && directionRequest.dragCenterRelativeToGrid !== null}
-                <div class="drag-center" style="left: {directionRequest.dragCenterRelativeToGrid[0]}px; top: {directionRequest.dragCenterRelativeToGrid[1]}px;">
-                    {#if directionRequest.currentDragDirection !== null}
-                        <div class="drag-arrow-rotation" style="transform: rotate({180-directionRequest.currentDragDirection*45}deg);">
+            {#if relativeDragCenter !== null}
+                <div class="drag-center" style="left: {relativeDragCenter[0]}px; top: {relativeDragCenter[1]}px;">
+                    {#if currentDragDirection !== null}
+                        <div class="drag-arrow-rotation" style="transform: rotate({180-currentDragDirection*45}deg);">
                             <div class="drag-arrow"><IconChevronCompactUp size="30"/></div>
                         </div>
                     {/if}
