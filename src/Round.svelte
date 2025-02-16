@@ -1,6 +1,6 @@
 <script lang="ts">
     import ClubSelector from "./ClubSelector.svelte";
-    import {type Club, ClubType, getClub} from "./club";
+    import {type Club} from "./club";
     import {CellBlockType, CellType, Course, Direction, getCellData, moveInDirection, type Position} from "./course";
     import {bool, nativeMath, pick} from "random-js";
     import Cell from "./Cell.svelte";
@@ -11,6 +11,9 @@
     import {createInteractAnimation, createSinkAnimation, playWinAnimation} from "./cellAnimation.js";
     import {Matrix2D} from "./terrainGeneration";
     import {IconArrowRight, IconChevronCompactUp} from "@tabler/icons-svelte";
+    import {onMount} from "svelte";
+    import {clubs} from "./club.js";
+    import {on} from "svelte/events";
 
 
     export let course: Course = new Course(Matrix2D.of(22, 22, CellType.Water), [10, 10], [11, 11]);
@@ -184,9 +187,10 @@
 
     let enableClubSelect = false;
     let selectedClub: Club|null = null;
-    let onSelectClub: ((clubData: Club) => void)|null = (clubData) => {
-        numDirectionHighlights = Math.round(clubData.diceFaces().reduce((a, b) => Math.max(a,b)));
-        clubRequest?.resolve(clubData);
+    const onSelectClub: (club: Club) => void = club => {
+        numDirectionHighlights = Math.round(club.diceFaces().reduce((a, b) => Math.max(a,b)));
+        updateCellDirectionHighlight();
+        clubRequest?.resolve(club);
     };
 
     let win: boolean = false;
@@ -198,18 +202,17 @@
         }
         enableClubSelect = true;
         if (selectedClub === null) {
-            selectedClub = await new Promise<Club>((resolve, reject) => {
+            selectedClub = await new Promise<Club>(resolve => {
                 clubRequest = {resolve: resolve};
             });
         }
 
         let direction = await selectDirection();
         enableClubSelect = false;
-        let clubData = selectedClub;
-        clubData.soundEffect(course.cell(player.position)).play();
+        selectedClub.soundEffect(course.cell(player.position)).play();
         player.addStroke();
 
-        let diceRoll = pick(nativeMath, clubData.diceFaces());
+        let diceRoll = pick(nativeMath, selectedClub.diceFaces());
         if (diceRoll === null) {
             throw new Error("Move was null.");
         }
@@ -224,15 +227,15 @@
 
         let startingPosition = player.position;
         let movementRemaining: number = diceRoll;
-        if (!clubData.noShotModifier()) {
+        if (!selectedClub.noShotModifier()) {
             movementRemaining += getCellData(course.cell(startingPosition)).shotModifier;
         }
 
         while (movementRemaining > 0) {
             movementRemaining--;
             distanceMoved++;
-            if (!slicedYet && distanceMoved >= 5 && distanceBounced === 0 && bool(1/3)(nativeMath)) {
-                direction = rotateDirection(direction, pick(nativeMath, [-1, 0, 0, 1]));
+            if (!slicedYet && distanceMoved >= selectedClub.sliceFrom() && distanceBounced === 0 && bool(1/5)(nativeMath)) {
+                direction = rotateDirection(direction, pick(nativeMath, [-1, 1]));
                 slicedYet = true;
             }
             let newPosition = moveInDirection(player.position, direction);
@@ -253,7 +256,7 @@
                 cellData.blockSoundEffect?.play();
                 movementRemaining = 0;
                 break;
-            } else if (cellData.blockType === CellBlockType.Stick && clubData.sticks()) {
+            } else if (cellData.blockType === CellBlockType.Stick && selectedClub.sticks()) {
                 updatePosition(newPosition);
                 await timeout(200);
                 if (movementRemaining > 0) {
@@ -265,7 +268,7 @@
                 break;
             }
             updatePosition(newPosition);
-            if (movementRemaining === 0 && distanceBounced < cellData.rollDistance && clubData.bounces()) {
+            if (movementRemaining === 0 && distanceBounced < cellData.rollDistance && selectedClub.bounces()) {
                 createInteractAnimation(cellData.primaryColor, 0.5, direction)
                     .play(cells.get(...newPosition));
                 distanceBounced++;
@@ -313,6 +316,27 @@
             nextRound = resolve;
         })
     }
+
+    const clubSelectEventListener: (this:Document, event: KeyboardEvent) => any = event => {
+        if (clubRequest !== null) {
+            let i = 1;
+            for (const club of clubs.values()) {
+                if (event.key === i.toString()) {
+                    selectedClub = club;
+                    onSelectClub(club);
+                    return;
+                }
+                i++;
+            }
+        }
+    };
+
+    onMount(() => {
+        const remove = on(document, 'keypress', clubSelectEventListener);
+        return () => {
+            remove();
+        }
+    });
 </script>
 <div class="game">
     <div class="board">
@@ -368,10 +392,10 @@
             </div>
         {/if}
         <ClubSelector
-                clubs={ [ClubType.Putter, ClubType.Wedge, ClubType.Iron, ClubType.Driver].map(c => {let data = getClub(c); return {data: data, enabled: course !== null && data.canUseOn(course.cell(player.position))}}) }
+                clubs={ clubs.values().map(c => ({club: c, enabled: course !== null && c.canUseOn(course.cell(player.position))})).toArray() }
                 enabled={enableClubSelect}
                 bind:selectedClub={selectedClub}
-                bind:onSelect={onSelectClub}
+                onSelect={onSelectClub}
         />
     </div>
 </div>

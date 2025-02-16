@@ -13,6 +13,7 @@ export class Club {
     #name: string;
     #icon: Icon;
     #diceFaces: number[];
+    #sliceFrom: number;
     #bounces: boolean = true;
     #sticks: boolean = true;
     #noShotModifier: boolean = false;
@@ -20,10 +21,11 @@ export class Club {
     #defaultSoundEffect: SoundEffect;
     #soundEffectOverrides: Map<CellType, SoundEffect> = new Map();
 
-    constructor(name: string, icon: Icon, diceFaces: number[], canUseOn: CellType[], defaultSoundEffect: SoundEffect) {
+    constructor(name: string, icon: Icon, diceFaces: number[], sliceFrom: number, canUseOn: CellType[], defaultSoundEffect: SoundEffect) {
         this.#name = name;
         this.#icon = icon;
         this.#diceFaces = diceFaces;
+        this.#sliceFrom = sliceFrom;
         this.#canUseOn = canUseOn;
         this.#defaultSoundEffect = defaultSoundEffect;
     }
@@ -36,6 +38,9 @@ export class Club {
     }
     diceFaces(): number[] {
         return this.#diceFaces;
+    }
+    sliceFrom(): number {
+        return this.#sliceFrom;
     }
     setBounces(bounces: boolean): this {
         this.#bounces = bounces;
@@ -73,25 +78,25 @@ export class Club {
     }
 }
 
-const clubs = new Map([
+export const clubs = new Map([
     [ClubType.Putter,
-        new Club('Putter', IconPoint, [1, 1, 1, 1, 2], [CellType.Fairway], SoundEffect.putter)
+        new Club('Putter', IconPoint, [1, 1, 1, 1, 2], 4, [CellType.Fairway], SoundEffect.putter)
             .setBounces(false)
             .setNoShotModifier(true)
     ],
     [ClubType.Wedge,
-        new Club('Wedge', IconCone, [1, 2, 2, 3, 3], [CellType.Fairway, CellType.Rough, CellType.Tree, CellType.Sand], SoundEffect.wedge)
+        new Club('Wedge', IconCone, [1, 1, 2, 2, 3], 4, [CellType.Fairway, CellType.Rough, CellType.Tree, CellType.Sand], SoundEffect.wedge)
             .setBounces(false)
             .setSticks(false)
             .overrideSoundEffect(CellType.Sand, SoundEffect.sandWedge)
     ],
     [ClubType.Iron,
-        new Club('Iron', IconDiamonds, [3, 3, 4, 4, 5], [CellType.Fairway, CellType.Rough, CellType.Tree], SoundEffect.iron)
+        new Club('Iron', IconDiamonds, [2, 3, 3, 4, 5], 4, [CellType.Fairway, CellType.Rough, CellType.Tree], SoundEffect.iron)
     ],
     [ClubType.Driver,
-        new Club('Driver', IconArrowBigRight, [4, 5, 6, 7, 8], [CellType.Fairway, CellType.Rough], SoundEffect.driver)
+        new Club('Driver', IconArrowBigRight, [3, 4, 5, 5, 6], 4, [CellType.Fairway, CellType.Rough], SoundEffect.driver)
     ]
-])
+]);
 
 export function getClub(clubType: ClubType): Club {
     return clubs.get(clubType) as Club;

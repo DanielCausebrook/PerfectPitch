@@ -9,7 +9,7 @@
     } from "@tabler/icons-svelte";
 
     export let enabled = true;
-    export let clubs: {data: Club, enabled: boolean}[];
+    export let clubs: {club: Club, enabled: boolean}[];
     export let selectedClub: Club|null = null;
     export let onSelect: ((clubData: Club) => void)|null = null;
 
@@ -21,36 +21,37 @@
     }
 </script>
 <ul class="club-selector" class:disabled={!enabled}>
-    {#each clubs as club}
-        <li class:disabled={!club.enabled || !enabled} class:selected={club.data === selectedClub}>
+    {#each clubs as {club:club, enabled: clubEnabled}, i}
+        <li class:disabled={!clubEnabled || !enabled} class:selected={club === selectedClub}>
             <span class="selection-marker"><IconChevronCompactRight size="30" /></span>
-            <button onclick={() => {if (club.enabled && enabled) changeClub(club.data)}}>
+            <button onclick={() => {if (clubEnabled && enabled) changeClub(club)}}>
                 <div class="title">
-                    <span class="icon"><svelte:component this={club.data.icon()} stroke="3" size="28"/></span>
-                    {club.data.name()}
+                    <span class="icon"><svelte:component this={club.icon()} stroke="3" size="28"/></span>
+                    {club.name()}
                 </div>
                 <div class="details">
                     <ul class="terrain">
-                        {#each club.data.cellTypes() as allowedCellType}
+                        {#each club.cellTypes() as allowedCellType}
                             <li><Cell cellType={allowedCellType} size={20} /></li>
                         {/each}
-                        {#if !club.data.sticks()}
+                        {#if !club.sticks()}
                             <li><IconPlaneTilt size={20} /></li>
                         {/if}
-                        {#if club.data.bounces()}
+                        {#if club.bounces()}
                             <li><IconBounceRightFilled size={20} /></li>
                         {/if}
                     </ul>
                     <ul class="dice-faces">
-                        {#each club.data.diceFaces() as face}
+                        {#each club.diceFaces() as face}
                             <li>
-                                <Dice value={face} filled={true} size="35" stroke="1.7" color={face < 5 ? 'hsl(0, 0%, 35%)' : 'hsl(20, 60%, 30%)'} />
+                                <Dice value={face} filled={true} size="35" stroke="1.7" color={face>=club.sliceFrom()?'hsl(20, 60%, 30%)':'hsl(0, 0%, 35%)'} />
                                 <div class="overlay"><Dice value={0} filled={true} size="35" stroke="1.7" /></div>
                             </li>
                         {/each}
                     </ul>
                 </div>
             </button>
+            <span class="key-hint">{i + 1}</span>
         </li>
     {/each}
 </ul>
@@ -87,6 +88,9 @@
                     filter: contrast(0.5) brightness(0.6);
                     transition: transform 0.15s ease, filter 0.15s ease;
                 }
+                > .key-hint {
+                    opacity: 0.08;
+                }
             }
             &:not(.disabled) {
                 > button {
@@ -113,6 +117,17 @@
                 opacity: 0;
                 transform: translateX(-30px);
                 transition: transform 0.7s cubic-bezier(.02,1.2,.02,1), opacity .1s ease-out;
+                pointer-events: none;
+            }
+            > .key-hint {
+                position: absolute;
+                left: -5px;
+                top: 50%;
+                transform: translate(-100%, -50%);
+                color: hsl(0, 0%, 100%);
+                opacity: 0.15;
+                transition: opacity 0.15s ease;
+                pointer-events: none;
             }
             > button {
                 grid-column: start / end;
