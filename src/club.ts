@@ -10,6 +10,7 @@ export enum ClubType {
 }
 
 export class Club {
+    readonly type: ClubType;
     #name: string;
     #icon: Icon;
     #diceFaces: number[];
@@ -21,7 +22,8 @@ export class Club {
     #defaultSoundEffect: SoundEffect;
     #soundEffectOverrides: Map<CellType, SoundEffect> = new Map();
 
-    constructor(name: string, icon: Icon, diceFaces: number[], sliceFrom: number, canUseOn: CellType[], defaultSoundEffect: SoundEffect) {
+    constructor(type: ClubType, name: string, icon: Icon, diceFaces: number[], sliceFrom: number, canUseOn: CellType[], defaultSoundEffect: SoundEffect) {
+        this.type = type;
         this.#name = name;
         this.#icon = icon;
         this.#diceFaces = diceFaces;
@@ -29,7 +31,6 @@ export class Club {
         this.#canUseOn = canUseOn;
         this.#defaultSoundEffect = defaultSoundEffect;
     }
-
     name(): string {
         return this.#name;
     }
@@ -79,24 +80,16 @@ export class Club {
 }
 
 export const clubs = new Map([
-    [ClubType.Putter,
-        new Club('Putter', IconPoint, [1, 1, 1, 1, 2], 4, [CellType.Fairway], SoundEffect.putter)
-            .setBounces(false)
-            .setNoShotModifier(true)
-    ],
-    [ClubType.Wedge,
-        new Club('Wedge', IconCone, [1, 1, 2, 2, 3], 4, [CellType.Fairway, CellType.Rough, CellType.Tree, CellType.Sand], SoundEffect.wedge)
-            .setBounces(false)
-            .setSticks(false)
-            .overrideSoundEffect(CellType.Sand, SoundEffect.sandWedge)
-    ],
-    [ClubType.Iron,
-        new Club('Iron', IconDiamonds, [2, 3, 3, 4, 5], 4, [CellType.Fairway, CellType.Rough, CellType.Tree], SoundEffect.iron)
-    ],
-    [ClubType.Driver,
-        new Club('Driver', IconArrowBigRight, [3, 4, 5, 5, 6], 4, [CellType.Fairway, CellType.Rough], SoundEffect.driver)
-    ]
-]);
+    new Club(ClubType.Putter, 'Putter', IconPoint, [1, 1, 1, 1, 2], 4, [CellType.Fairway], SoundEffect.putter)
+        .setBounces(false)
+        .setNoShotModifier(true),
+    new Club(ClubType.Wedge, 'Wedge', IconCone, [1, 1, 2, 2, 3], 4, [CellType.Fairway, CellType.Rough, CellType.Tree, CellType.Sand], SoundEffect.wedge)
+        .setBounces(false)
+        .setSticks(false)
+        .overrideSoundEffect(CellType.Sand, SoundEffect.sandWedge),
+    new Club(ClubType.Iron, 'Iron', IconDiamonds, [2, 3, 3, 4, 5], 4, [CellType.Fairway, CellType.Rough, CellType.Tree], SoundEffect.iron),
+    new Club(ClubType.Driver, 'Driver', IconArrowBigRight, [3, 4, 5, 5, 6], 4, [CellType.Fairway, CellType.Rough], SoundEffect.driver),
+].map(c => [c.type, c]));
 
 export function getClub(clubType: ClubType): Club {
     return clubs.get(clubType) as Club;

@@ -9,7 +9,7 @@
     } from "@tabler/icons-svelte";
 
     export let enabled = true;
-    export let clubs: {club: Club, enabled: boolean}[];
+    export let clubs: {club: Club, faces: number[], used: number, enabled: boolean}[];
     export let selectedClub: Club|null = null;
     export let onSelect: ((clubData: Club) => void)|null = null;
 
@@ -21,7 +21,7 @@
     }
 </script>
 <ul class="club-selector" class:disabled={!enabled}>
-    {#each clubs as {club:club, enabled: clubEnabled}, i}
+    {#each clubs as {club:club, faces: faces, used: used, enabled: clubEnabled}, i}
         <li class:disabled={!clubEnabled || !enabled} class:selected={club === selectedClub}>
             <span class="selection-marker"><IconChevronCompactRight size="30" /></span>
             <button onclick={() => {if (clubEnabled && enabled) changeClub(club)}}>
@@ -42,10 +42,12 @@
                         {/if}
                     </ul>
                     <ul class="dice-faces">
-                        {#each club.diceFaces() as face}
-                            <li>
-                                <Dice value={face} filled={true} size="35" stroke="1.7" color={face>=club.sliceFrom()?'hsl(20, 60%, 30%)':'hsl(0, 0%, 35%)'} />
-                                <div class="overlay"><Dice value={0} filled={true} size="35" stroke="1.7" /></div>
+                        {#each faces as face, i}
+                            <li class:used={i<used} class:next={i===used} class:unused={i>used}>
+                                <div class="dice-wrapper">
+                                    <Dice value={face} filled={true} size="35" stroke="1.7" color={face>=club.sliceFrom()?'hsl(20, 60%, 30%)':'hsl(0, 0%, 35%)'} />
+                                    <div class="overlay"><Dice value={0} filled={true} size="35" stroke="1.7" /></div>
+                                </div>
                             </li>
                         {/each}
                     </ul>
@@ -64,7 +66,7 @@
         list-style: none;
         margin: 0;
         padding: 0;
-        grid-gap: 4px 10px;
+        grid-gap: 5px 10px;
 
         > li {
             grid-column: start / end;
@@ -79,13 +81,12 @@
                 }
                 > button {
                     transform: translateX(15px);
-                    background: hsl(0, 0%, 95%);
-                    filter: brightness(90%);
+                    filter: brightness(100%);
                 }
             }
             &.disabled {
                 > button {
-                    filter: contrast(0.5) brightness(0.6);
+                    filter: contrast(50%) brightness(60%);
                     transition: transform 0.15s ease, filter 0.15s ease;
                 }
                 > .key-hint {
@@ -133,14 +134,14 @@
                 grid-column: start / end;
                 display: grid;
                 grid-template-columns: subgrid;
-                background: hsl(0, 0%, 80%);
+                background: hsl(0, 0%, 75%);
                 color: hsl(0, 0%, 5%);
                 padding: 0 6px;
                 border-radius: 4px;
                 transition: transform 0.3s ease, filter 0.3s ease;
                 transform: translateX(0);
                 border: none;
-                filter: brightness(0.85);
+                filter: brightness(80%);
 
                 .title {
                     display: flex;
@@ -169,33 +170,66 @@
                         flex-flow: row nowrap;
                         align-items: center;
                         justify-content: center;
-                        gap: 3px;
+                        gap: 1px;
                         margin: 0;
-                        padding: 2px 0;
+                        padding: 0;
                         list-style: none;
 
                         > li {
                             display: flex;
                             align-items: center;
                             justify-content: center;
+                            padding: 2px 1px;
                         }
 
                         &.dice-faces {
-                            > li {
-                                position: relative;
-                                isolation: isolate;
+                            flex-flow: row-reverse nowrap;
+                            align-items: stretch;
 
-                                > .overlay {
-                                    position: absolute;
-                                    top: 0;
-                                    left: 0;
-                                    bottom: 0;
-                                    right: 0;
-                                    background: hsl(0, 0%, 50%);
-                                    color: white;
-                                    mix-blend-mode: multiply;
-                                    filter: blur(3px);
-                                    mask: url("lib/extra-dice-icons/dice-0-filled.svg") 0 0/100%;
+                            > li {
+                                display: flex;
+                                flex-flow: row nowrap;
+                                align-items: center;
+                                position: relative;
+                                overflow-y: clip;
+
+                                &.used {
+                                    filter: opacity(0.4) contrast(0.5);
+                                }
+                                &.next {
+                                    margin-top: -1px;
+                                    background: hsl(0, 0%, 100%);
+                                    &::after {
+                                        position: absolute;
+                                        top: -10px;
+                                        bottom: -10px;
+                                        left: 0;
+                                        right: 0;
+                                        box-shadow: -1px 0 5px hsl(0, 0%, 0%, 20%);
+                                        content: '';
+                                    }
+                                }
+                                &.unused {
+                                    filter: opacity(0.85);
+                                }
+                                > .dice-wrapper {
+                                    isolation: isolate;
+                                    position: relative;
+                                    overflow: hidden;
+                                    line-height: 0;
+
+                                    > .overlay {
+                                        position: absolute;
+                                        top: 0;
+                                        left: 0;
+                                        bottom: 0;
+                                        right: 0;
+                                        background: hsl(0, 0%, 50%);
+                                        color: white;
+                                        mix-blend-mode: multiply;
+                                        filter: blur(3px);
+                                        mask: url("lib/extra-dice-icons/dice-0-filled.svg") 0 0/100%;
+                                    }
                                 }
                             }
                         }

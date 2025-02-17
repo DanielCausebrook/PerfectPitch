@@ -16,8 +16,8 @@
     import {on} from "svelte/events";
 
 
-    export let course: Course = new Course(Matrix2D.of(22, 22, CellType.Water), [10, 10], [11, 11]);
-    export let player: Player = new Player([10, 10], 4);
+    export let course: Course;
+    export let player: Player;
 
     const listenerRemovers: (() => void)[] = [];
 
@@ -104,8 +104,7 @@
     let directionRequest: DirectionRequest|null = null;
     let relativeDragCenter: Position|null = null;
     let currentDragDirection: Direction|null = null;
-    let directionHighlightCells: Map<string, number> = new Map();
-    let numDirectionHighlights: number = 0;
+    let cellDirectionHighlights: Map<string, string> = new Map();
 
     async function selectDirection(): Promise<Direction> {
         return new Promise(resolve => {
@@ -130,19 +129,20 @@
     }
 
     function updateCellDirectionHighlight() {
-        directionHighlightCells.clear();
+        cellDirectionHighlights.clear();
         let direction = directionRequest?.currentDragDirection ?? null;
-        if (direction === null) {
-            directionHighlightCells = directionHighlightCells;
+        if (direction === null || selectedClub === null) {
+            cellDirectionHighlights = cellDirectionHighlights;
             return;
         }
-        const maxI = numDirectionHighlights + 1
+        let nextMoveDistance = player.clubStatus(selectedClub.type).current()
         let highlightPos = player.position;
-        for (let i = 0; i < maxI; i++) {
-            directionHighlightCells.set(`[${highlightPos[0]}, ${highlightPos[1]}]`, 1 - Math.pow(i/maxI, 3));
+        for (let i = 0; i <= nextMoveDistance; i++) {
+            let color = i >= selectedClub.sliceFrom() ? 'hsl(20, 60%, 70%)' : 'hsl(0, 0%, 100%)';
+            cellDirectionHighlights.set(`[${highlightPos[0]}, ${highlightPos[1]}]`, color);
             highlightPos = moveInDirection(highlightPos, direction);
         }
-        directionHighlightCells = directionHighlightCells;
+        cellDirectionHighlights = cellDirectionHighlights;
     }
 
     function registerDirectionInputElement(element: HTMLElement) {
@@ -212,7 +212,6 @@
     let enableClubSelect = false;
     let selectedClub: Club|null = null;
     const onSelectClub: (club: Club) => void = club => {
-        numDirectionHighlights = Math.round(club.diceFaces().reduce((a, b) => Math.max(a,b)));
         updateCellDirectionHighlight();
         SoundEffect.select.play();
         clubRequest?.resolve(club);
@@ -237,9 +236,10 @@
         selectedClub.soundEffect(course.cell(player.position)).play();
         player.addStroke();
 
-        let diceRoll = pick(nativeMath, selectedClub.diceFaces());
-        if (diceRoll === null) {
-            throw new Error("Move was null.");
+        let clubStatus = player.clubStatus(selectedClub.type);
+        let diceRoll = clubStatus.current();
+        if (!clubStatus.next()) {
+            clubStatus.shuffle();
         }
 
         let distanceMoved = 0;
@@ -385,8 +385,8 @@
         <div class="grid" use:registerDirectionInputElement style="grid: repeat({course.height()}, 1fr) / repeat({course.width()}, 1fr);">
             {#each {length: course.height()} as _, y}
                 {#each {length: course.width()} as _, x}
-                    {@const highlight = directionHighlightCells.get(`[${[x, y][0]}, ${[x, y][1]}]`) ?? 0}
-                    <div class="cell" class:direction-highlight={highlight !== 0} style="{highlight !== 0 ? `outline-color: hsl(0, 0%, ${highlight*100}%); `: ''}" use:registerCell={[x, y]}>
+                    {@const highlight = cellDirectionHighlights.get(`[${[x, y][0]}, ${[x, y][1]}]`) ?? null}
+                    <div class="cell" class:direction-highlight={highlight !== null} style="{highlight !== null ? `outline-color: ${highlight}; `: ''}" use:registerCell={[x, y]}>
                         {#key course}
                             <Cell size={20} cellType={course === null ? CellType.Water : course.cell([x, y])} hasBall={course !== null && showBall && player.position[0] === x && player.position[1] === y} />
                         {/key}
@@ -419,7 +419,15 @@
             </div>
         {/if}
         <ClubSelector
-                clubs={ clubs.values().map(c => ({club: c, enabled: course !== null && c.canUseOn(course.cell(player.position))})).toArray() }
+                clubs={ clubs.values().map(c => {
+                    let status = player.clubStatus(c.type);
+                    return {
+                        club: c,
+                        faces: status.faces(),
+                        used: status.currentFaceIndex(),
+                        enabled: course !== null && c.canUseOn(course.cell(player.position))
+                    };
+                }).toArray() }
                 enabled={enableClubSelect}
                 bind:selectedClub={selectedClub}
                 onSelect={onSelectClub}
@@ -436,6 +444,10 @@
         gap: 20px;
         padding: 20px;
         max-height: 900px;
+    }
+    .board {
+        flex: 0 0 auto;
+        align-self: center;
     }
     .status {
         align-self: stretch;

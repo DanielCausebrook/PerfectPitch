@@ -16,7 +16,7 @@
 
     async function runGame(seed: number) {
         let rng = MersenneTwister19937.seed(seed);
-        let player = new Player([0, 0], 4);
+        let player = new Player([0, 0], 4, new Random(MersenneTwister19937.seed(rng.next())));
         for (let roundNum = 0; roundNum < player.numRounds(); roundNum++) {
             if (roundNum !== 0) player.newRound();
 

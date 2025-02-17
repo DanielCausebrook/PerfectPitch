@@ -1,15 +1,62 @@
 import type {Position} from "./course";
+import {Club, clubs, type ClubType, getClub} from "./club";
+import {MersenneTwister19937, Random} from "random-js";
+
+class ClubStatus {
+    #faces: number[];
+    #currentIndex: number = 0;
+    readonly rerollRng: Random;
+
+    constructor(club: Club, rerollRng: Random) {
+        this.#faces = club.diceFaces();
+        this.rerollRng = rerollRng;
+    }
+
+    faces(): number[] {
+        return this.#faces;
+    }
+
+    currentFaceIndex(): number {
+        return this.#currentIndex;
+    }
+
+    current(): number {
+        return this.#faces[this.#currentIndex];
+    }
+
+    next(): boolean {
+        if (this.#currentIndex >= this.#faces.length - 1) {
+            return false;
+        }
+        this.#currentIndex++;
+        return true;
+    }
+
+    shuffle(): void {
+        this.#faces = this.rerollRng.shuffle(this.#faces);
+        this.#currentIndex = 0;
+    }
+}
 
 export class Player {
     position: Position;
+    #clubs: Map<ClubType, ClubStatus>;
     #numRounds: number;
     #currRound: number = 0;
     #scoreBoard: number[];
 
-    constructor(position: Position, numRounds: number) {
+    constructor(position: Position, numRounds: number, clubRng: Random) {
         this.position = position;
         this.#numRounds = numRounds;
         this.#scoreBoard = Array(numRounds).fill(0);
+        this.#clubs = new Map(clubs.values().map(c => [
+            c.type,
+            new ClubStatus(c, new Random(MersenneTwister19937.seed(clubRng.uint32())))
+        ]));
+    }
+
+    clubStatus(clubType: ClubType): ClubStatus {
+        return this.#clubs.get(clubType) as ClubStatus;
     }
 
     addStroke(): void {
