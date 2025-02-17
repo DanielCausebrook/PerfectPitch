@@ -119,11 +119,8 @@
                     if (request.dragCenter === null) {
                         relativeDragCenter = null;
                     } else {
-                        let inputElementPos = [
-                            directionInputElement.offsetLeft + directionInputElement.clientLeft,
-                            directionInputElement.offsetTop + directionInputElement.clientTop,
-                        ];
-                        relativeDragCenter = [request.dragCenter[0] - inputElementPos[0], request.dragCenter[1] - inputElementPos[1]];
+                        let inputElementPos = directionInputElement.getBoundingClientRect();
+                        relativeDragCenter = [request.dragCenter[0] - inputElementPos.left, request.dragCenter[1] - inputElementPos.top];
                     }
                     currentDragDirection = request.currentDragDirection;
                     updateCellDirectionHighlight();
