@@ -7,18 +7,40 @@
         IconChevronCompactRight,
         IconPlaneTilt
     } from "@tabler/icons-svelte";
+    import {onMount} from "svelte";
+    import {on} from "svelte/events";
 
     export let enabled = true;
     export let clubs: {club: Club, faces: number[], used: number, enabled: boolean}[];
     export let selectedClub: Club|null = null;
     export let onSelect: ((clubData: Club) => void)|null = null;
 
-    function changeClub(clubType: Club) {
-        if (clubType !== selectedClub) {
-            selectedClub = clubType;
-            if (onSelect !== null) onSelect(clubType);
+    function changeClub(club: Club) {
+        if (club !== selectedClub) {
+            selectedClub = club;
+            if (onSelect !== null) onSelect(club);
         }
     }
+
+    const clubSelectEventListener: (this:Document, event: KeyboardEvent) => any = event => {
+        if (enabled) {
+            let i = 1;
+            for (const club of clubs) {
+                if (event.key === i.toString() && club.enabled) {
+                    changeClub(club.club)
+                    return;
+                }
+                i++;
+            }
+        }
+    };
+
+    onMount(() => {
+        let listenerRemover = on(document, 'keypress', clubSelectEventListener);
+        return () => {
+            listenerRemover();
+        }
+    });
 </script>
 <ul class="club-selector" class:disabled={!enabled}>
     {#each clubs as {club:club, faces: faces, used: used, enabled: clubEnabled}, i}

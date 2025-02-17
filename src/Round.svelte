@@ -11,7 +11,6 @@
     import {createInteractAnimation, createSinkAnimation, playWinAnimation} from "./cellAnimation.js";
     import {Matrix2D} from "./terrainGeneration";
     import {IconArrowRight, IconChevronCompactUp} from "@tabler/icons-svelte";
-    import {onMount} from "svelte";
     import {clubs} from "./club.js";
     import {on} from "svelte/events";
 
@@ -341,29 +340,6 @@
             nextRound = resolve;
         })
     }
-
-    const clubSelectEventListener: (this:Document, event: KeyboardEvent) => any = event => {
-        if (clubRequest !== null) {
-            let i = 1;
-            for (const club of clubs.values()) {
-                if (event.key === i.toString() && club.canUseOn(course.cell(player.position))) {
-                    selectedClub = club;
-                    onSelectClub(club);
-                    return;
-                }
-                i++;
-            }
-        }
-    };
-
-    onMount(() => {
-        listenerRemovers.push(on(document, 'keypress', clubSelectEventListener));
-        return () => {
-            for (const listenerRemover of listenerRemovers) {
-                listenerRemover();
-            }
-        }
-    });
 </script>
 <div class="game">
     <div class="board">
