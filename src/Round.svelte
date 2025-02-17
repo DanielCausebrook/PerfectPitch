@@ -320,6 +320,8 @@
         }
         if (cellData.outOfBounds) {
             showBall = false;
+            player.addStroke();
+            player = player;
             await createSinkAnimation(cellData.primaryColor, direction)
                 .play(cells.get(...player.position));
             showBall = true;
