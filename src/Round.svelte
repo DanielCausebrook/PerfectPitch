@@ -11,7 +11,6 @@
     import {createInteractAnimation, createSinkAnimation, playWinAnimation} from "./cellAnimation.js";
     import {Matrix2D} from "./terrainGeneration";
     import {IconArrowRight, IconChevronCompactUp} from "@tabler/icons-svelte";
-    import {clubs} from "./club.js";
     import {on} from "svelte/events";
 
 
@@ -134,7 +133,11 @@
             cellDirectionHighlights = cellDirectionHighlights;
             return;
         }
-        let nextMoveDistance = player.clubStatus(selectedClub.type).current()
+        let nextMoveDistance = player.clubStatus(selectedClub.type).current();
+        if (nextMoveDistance === null) {
+            cellDirectionHighlights = cellDirectionHighlights;
+            return;
+        }
         let highlightPos = player.position;
         for (let i = 0; i <= nextMoveDistance; i++) {
             let color = i >= selectedClub.sliceFrom() ? 'hsl(20, 60%, 70%)' : 'hsl(0, 0%, 100%)';
@@ -232,13 +235,18 @@
 
         let direction = await selectDirection();
         enableClubSelect = false;
-        selectedClub.soundEffect(course.cell(player.position)).play();
+        let clubForShot = selectedClub;
+        clubForShot.soundEffect(course.cell(player.position)).play();
         player.addStroke();
 
         let clubStatus = player.clubStatus(selectedClub.type);
         let diceRoll = clubStatus.current();
-        if (!clubStatus.next()) {
-            clubStatus.shuffle();
+        if (diceRoll === null) {
+            throw new Error("Dice roll is null");
+        }
+        clubStatus.next();
+        if (player.clubStatus(selectedClub.type).current() === null) {
+            selectedClub = null;
         }
 
         let distanceMoved = 0;
@@ -251,14 +259,14 @@
 
         let startingPosition = player.position;
         let movementRemaining: number = diceRoll;
-        if (!selectedClub.noShotModifier()) {
+        if (!clubForShot.noShotModifier()) {
             movementRemaining += getCellData(course.cell(startingPosition)).shotModifier;
         }
 
         while (movementRemaining > 0) {
             movementRemaining--;
             distanceMoved++;
-            if (!slicedYet && distanceMoved >= selectedClub.sliceFrom() && distanceBounced === 0 && bool(1/5)(nativeMath)) {
+            if (!slicedYet && distanceMoved >= clubForShot.sliceFrom() && distanceBounced === 0 && bool(1/5)(nativeMath)) {
                 direction = rotateDirection(direction, pick(nativeMath, [-1, 1]));
                 slicedYet = true;
             }
@@ -280,7 +288,7 @@
                 cellData.blockSoundEffect?.play();
                 movementRemaining = 0;
                 break;
-            } else if (cellData.blockType === CellBlockType.Stick && selectedClub.sticks()) {
+            } else if (cellData.blockType === CellBlockType.Stick && clubForShot.sticks()) {
                 updatePosition(newPosition);
                 await timeout(200);
                 if (movementRemaining > 0) {
@@ -292,7 +300,7 @@
                 break;
             }
             updatePosition(newPosition);
-            if (movementRemaining === 0 && distanceBounced < cellData.rollDistance && selectedClub.bounces()) {
+            if (movementRemaining === 0 && distanceBounced < cellData.rollDistance && clubForShot.bounces()) {
                 createInteractAnimation(cellData.primaryColor, 0.5, direction)
                     .play(cells.get(...newPosition));
                 distanceBounced++;
@@ -395,15 +403,8 @@
             </div>
         {/if}
         <ClubSelector
-                clubs={ clubs.values().map(c => {
-                    let status = player.clubStatus(c.type);
-                    return {
-                        club: c,
-                        faces: status.faces(),
-                        used: status.currentFaceIndex(),
-                        enabled: course !== null && c.canUseOn(course.cell(player.position))
-                    };
-                }).toArray() }
+                bind:player={player}
+                course={course}
                 enabled={enableClubSelect}
                 bind:selectedClub={selectedClub}
                 onSelect={onSelectClub}

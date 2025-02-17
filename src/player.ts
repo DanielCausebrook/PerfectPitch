@@ -10,6 +10,7 @@ class ClubStatus {
     constructor(club: Club, rerollRng: Random) {
         this.#faces = club.diceFaces();
         this.rerollRng = rerollRng;
+        this.shuffle();
     }
 
     faces(): number[] {
@@ -20,16 +21,18 @@ class ClubStatus {
         return this.#currentIndex;
     }
 
-    current(): number {
+    current(): number|null {
+        if (this.#currentIndex >= this.#faces.length) {
+            return null;
+        }
         return this.#faces[this.#currentIndex];
     }
 
-    next(): boolean {
-        if (this.#currentIndex >= this.#faces.length - 1) {
-            return false;
+    next(): void {
+        if (this.#currentIndex >= this.#faces.length) {
+            return;
         }
         this.#currentIndex++;
-        return true;
     }
 
     shuffle(): void {
