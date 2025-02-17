@@ -248,6 +248,7 @@
         if (player.clubStatus(selectedClub.type).current() === null) {
             selectedClub = null;
         }
+        player = player;
 
         let distanceMoved = 0;
         let distanceBounced = 0;
