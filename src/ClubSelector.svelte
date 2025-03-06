@@ -170,7 +170,6 @@
             / [start] 130px [mid] 1fr [end];
         grid-gap: 5px 10px;
         position: relative;
-        z-index: 1;
 
         > .club {
             grid-column: start / end;

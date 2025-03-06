@@ -570,6 +570,8 @@
 
     .bottom-panel {
         position: relative;
+        z-index: 1;
+
         .win {
             position: absolute;
             top: 20px;
