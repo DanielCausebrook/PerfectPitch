@@ -2,7 +2,6 @@
     import ClubSelector from "./ClubSelector.svelte";
     import {type Club} from "./club";
     import {CellBlockType, CellType, Course, Direction, getCellData, moveInDirection, type Position} from "./course";
-    import {bool, nativeMath, pick} from "random-js";
     import Cell from "./Cell.svelte";
     import {Player} from "./player";
     import {SoundEffect} from "./soundEffect";
@@ -218,6 +217,8 @@
         SoundEffect.select.play();
         clubRequest?.resolve(club);
     };
+    let advanceClubLockout: () => void;
+    let rerollClubs: () => void;
 
     let win: boolean = false;
     let showBall: boolean = true;
@@ -226,6 +227,7 @@
         if (selectedClub !== null && !selectedClub.canUseOn(course.cell(player.position))) {
             selectedClub = null;
         }
+        rerollClubs();
         enableClubSelect = true;
         if (selectedClub === null) {
             selectedClub = await new Promise<Club>(resolve => {
@@ -239,12 +241,13 @@
         clubForShot.soundEffect(course.cell(player.position)).play();
         player.addStroke();
 
+        advanceClubLockout();
         let clubStatus = player.clubStatus(selectedClub.type);
-        let diceRoll = clubStatus.current();
-        if (diceRoll === null) {
+        let stroke = clubStatus.strokeCurrent();
+        if (stroke === null) {
             throw new Error("Dice roll is null");
         }
-        clubStatus.next();
+        let {distance: movementRemaining, sliceValues: sliceValues} = stroke;
         if (player.clubStatus(selectedClub.type).current() === null) {
             selectedClub = null;
         }
@@ -259,7 +262,6 @@
         }
 
         let startingPosition = player.position;
-        let movementRemaining: number = diceRoll;
         if (!clubForShot.noShotModifier()) {
             movementRemaining += getCellData(course.cell(startingPosition)).shotModifier;
         }
@@ -267,8 +269,9 @@
         while (movementRemaining > 0) {
             movementRemaining--;
             distanceMoved++;
-            if (!slicedYet && distanceMoved >= clubForShot.sliceFrom() && distanceBounced === 0 && bool(1/5)(nativeMath)) {
-                direction = rotateDirection(direction, pick(nativeMath, [-1, 1]));
+            let slice = sliceValues.shift() ?? 0;
+            if (!slicedYet && distanceMoved >= clubForShot.sliceFrom() && distanceBounced === 0 && slice !== 0) {
+                direction = rotateDirection(direction, slice);
                 slicedYet = true;
             }
             let newPosition = moveInDirection(player.position, direction);
@@ -411,6 +414,8 @@
                 enabled={enableClubSelect}
                 bind:selectedClub={selectedClub}
                 onSelect={onSelectClub}
+                bind:advanceLockout={advanceClubLockout}
+                bind:rerollAll={rerollClubs}
         />
     </div>
 </div>

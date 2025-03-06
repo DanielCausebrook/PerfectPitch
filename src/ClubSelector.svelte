@@ -17,6 +17,21 @@
     export let course: Course;
     export let selectedClub: Club|null = null;
     export let onSelect: ((clubData: Club) => void)|null = null;
+    export const advanceLockout = ():void => {
+        for (const clubStatus of clubs.keys().map(type => player.clubStatus(type))) {
+            clubStatus.advanceLockout();
+        }
+        player = player;
+    };
+    export const rerollAll = () => {
+        for (const clubType of clubs.keys()) {
+            let status = player.clubStatus(clubType);
+            if (status.lockoutLeft() === 0) {
+                rerollClub(clubType);
+            }
+        }
+        player = player;
+    };
 
     let clubSpinners: Map<ClubType, HTMLElement> = new Map();
     function registerClubSpinner(element: HTMLElement, data: Club) {
@@ -24,11 +39,11 @@
     }
 
     function isClubEnabled(club: Club) {
-        return enabled && club.canUseOn(course.cell(player.position));
+        return enabled && club.canUseOn(course.cell(player.position)) && player.clubStatus(club.type).current() !== null;
     }
 
-    function isClubOutOfShots(club: Club) {
-        return player.clubStatus(club.type).current() === null;
+    function isClubOutOfShots(clubType: ClubType) {
+        return player.clubStatus(clubType).current() === null;
     }
 
     function changeClub(club: Club) {
@@ -38,27 +53,37 @@
         }
     }
 
+    function rerollClub(clubType: ClubType) {
+        player.clubStatus(clubType).shuffle();
+        player = player;
+        clubSpinners.get(clubType)?.animate([
+            {transform: "rotate3d(1, 0, 0, 0deg)", offset: 0, easing: "ease-out"},
+            {transform: "rotate3d(1, 0, 0, 360deg)", offset: 1},
+        ], {
+            duration: 500,
+            iterations: 1,
+        });
+    }
+
     function clickClub(club: Club) {
         if (isClubEnabled(club)) {
-            if (isClubOutOfShots(club)) {
-                let buttonSpinner = clubSpinners.get(club.type);
-                if (buttonSpinner !== undefined) {
-                    player.clubStatus(club.type).shuffle();
-                    player.addStroke();
-                    player = player;
-                    changeClub(club);
-                    buttonSpinner.animate([
-                        {transform: "rotate3d(1, 0, 0, 0deg)", offset: 0, easing: "ease-out"},
-                        {transform: "rotate3d(1, 0, 0, 360deg)", offset: 1},
-                    ], {
-                        duration: 500,
-                        iterations: 1,
-                    });
-                }
-            } else {
-                changeClub(club);
+            if (isClubOutOfShots(club.type)) {
+                rerollClub(club.type);
+            }
+            changeClub(club);
+        }
+    }
+
+    function wait() {
+        player.addStroke();
+        for (const clubType of clubs.keys()) {
+            const status = player.clubStatus(clubType)
+            status.advanceLockout();
+            if (status.lockoutLeft() === 0) {
+                rerollClub(clubType);
             }
         }
+        player = player;
     }
 
     const clubSelectEventListener: (this:Document, event: KeyboardEvent) => any = event => {
@@ -83,14 +108,15 @@
         }
     });
 </script>
-<ul class="club-selector" class:disabled={!enabled}>
+<div class="club-selector" class:disabled={!enabled}>
     {#each clubs.values() as club, i}
         {@const clubEnabled = isClubEnabled(club)}
         {@const clubStatus = player.clubStatus(club.type)}
-        <li class:disabled={!clubEnabled} class:selected={club === selectedClub}>
+        {@const lockoutLeft = clubStatus.lockoutLeft()}
+        <div class="club" class:disabled={!clubEnabled} class:selected={club === selectedClub}>
             <span class="selection-marker"><IconChevronCompactRight size="30" /></span>
             <div class="reroll-spinner" use:registerClubSpinner="{club}">
-            <button onclick={() => clickClub(club)} class:out-of-shots={isClubOutOfShots(club)}>
+            <button onclick={() => clickClub(club)} class:out-of-shots={isClubOutOfShots(club.type)}>
                 <div class="title">
                     <span class="icon"><svelte:component this={club.icon()} stroke="3" size="28"/></span>
                     {club.name()}
@@ -109,36 +135,44 @@
                     </ul>
                     <div class="dice-faces">
                         {#each clubStatus.faces() as face, i}
-                            <div class="dice-face" class:used={i<clubStatus.currentFaceIndex()} class:next={i===clubStatus.currentFaceIndex()} class:unused={i>clubStatus.currentFaceIndex()}>
+                            {@const faceIndex = clubStatus.currentFaceIndex() ?? i+1}
+                            <div class="dice-face" class:used={i<faceIndex} class:next={i===faceIndex} class:unused={i>faceIndex}>
                                 <div class="dice-wrapper">
                                     <Dice value={face} filled={true} size="35" stroke="1.7" color={face>=club.sliceFrom()?'hsl(20, 60%, 30%)':'hsl(0, 0%, 35%)'} />
                                     <div class="overlay"><Dice value={0} filled={true} size="35" stroke="1.7" /></div>
                                 </div>
                             </div>
                         {/each}
-                        <div class="reroll">
-                            <span>Reroll +1</span>
-                        </div>
+                        {#if lockoutLeft !== null}
+                            <div class="reroll">
+                                <span>Reroll in {lockoutLeft}</span>
+                            </div>
+                        {/if}
                     </div>
                 </div>
             </button>
             </div>
             <span class="key-hint">{i + 1}</span>
-        </li>
+        </div>
     {/each}
-</ul>
+    {#if enabled && clubs.values().every(club => !isClubEnabled(club))}
+        <div class="out-of-shots">
+            Out of Shots!
+            <button type="button" onclick={wait}>Wait</button>
+        </div>
+    {/if}
+</div>
 <style>
     .club-selector {
         display: grid;
         grid:
             auto-flow
             / [start] 130px [mid] 1fr [end];
-        list-style: none;
-        margin: 0;
-        padding: 0;
         grid-gap: 5px 10px;
+        position: relative;
+        z-index: 1;
 
-        > li {
+        > .club {
             grid-column: start / end;
             display: grid;
             grid-template-columns: subgrid;
@@ -235,7 +269,7 @@
                     align-items: center;
                     gap: 10px;
                     padding: 0 10px;
-                    font-size: 18px;
+                    font-size: 20px;
                     > .icon {
                         display: flex;
                         flex-flow: row nowrap;
@@ -349,6 +383,43 @@
                             }
                         }
                     }
+                }
+            }
+        }
+        > .out-of-shots {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translate(-50%, -8px);
+
+            display: flex;
+            flex-flow: row nowrap;
+            align-items: center;
+            gap: 20px;
+            padding: 10px 20px;
+            font-size: 22px;
+
+            background: hsl(0, 0%, 0%, 70%);
+            border-radius: 4px;
+
+            white-space: nowrap;
+
+            button {
+                background: hsl(0, 0%, 75%);
+                color: hsl(0, 0%, 5%);
+                padding: 5px 10px;
+                min-width: 100px;
+                border-radius: 4px;
+                border: none;
+
+                font-size: 20px;
+                cursor: pointer;
+
+                transition: background 0.3s;
+
+                &:hover {
+                    background: hsl(0, 0%, 82%);
+                    transition: background 0.8s cubic-bezier(.02,2.5,.05,1);
                 }
             }
         }

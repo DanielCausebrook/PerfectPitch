@@ -80,15 +80,15 @@ export class Club {
 }
 
 export const clubs = new Map([
-    new Club(ClubType.Putter, 'Putter', IconPoint, [1, 1, 1, 1, 2], 4, [CellType.Fairway], SoundEffect.putter)
+    new Club(ClubType.Putter, 'Putter', IconPoint, [1, 1, 1, 2], 5, [CellType.Fairway], SoundEffect.putter)
         .setBounces(false)
         .setNoShotModifier(true),
-    new Club(ClubType.Wedge, 'Wedge', IconCone, [1, 1, 2, 2, 3], 4, [CellType.Fairway, CellType.Rough, CellType.Tree, CellType.Sand], SoundEffect.wedge)
+    new Club(ClubType.Wedge, 'Wedge', IconCone, [1, 2, 3, 4], 5, [CellType.Fairway, CellType.Rough, CellType.Tree, CellType.Sand], SoundEffect.wedge)
         .setBounces(false)
         .setSticks(false)
         .overrideSoundEffect(CellType.Sand, SoundEffect.sandWedge),
-    new Club(ClubType.Iron, 'Iron', IconDiamonds, [2, 3, 3, 4, 5], 4, [CellType.Fairway, CellType.Rough, CellType.Tree], SoundEffect.iron),
-    new Club(ClubType.Driver, 'Driver', IconArrowBigRight, [3, 4, 5, 5, 6], 4, [CellType.Fairway, CellType.Rough], SoundEffect.driver),
+    new Club(ClubType.Iron, 'Iron', IconDiamonds, [2, 3, 4, 5], 5, [CellType.Fairway, CellType.Rough, CellType.Tree], SoundEffect.iron),
+    new Club(ClubType.Driver, 'Driver', IconArrowBigRight, [3, 4, 5, 6], 5, [CellType.Fairway, CellType.Rough], SoundEffect.driver),
 ].map(c => [c.type, c]));
 
 export function getClub(clubType: ClubType): Club {

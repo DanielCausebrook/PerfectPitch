@@ -2,14 +2,19 @@ import type {Position} from "./course";
 import {Club, clubs, type ClubType, getClub} from "./club";
 import {MersenneTwister19937, Random} from "random-js";
 
+const REROLL_LOCKOUT = 3;
+
 class ClubStatus {
     #faces: number[];
-    #currentIndex: number = 0;
+    #currentIndex: number|null = 0;
+    #rerollLockout: number|null = null;
     readonly rerollRng: Random;
+    readonly sliceRng: Random;
 
-    constructor(club: Club, rerollRng: Random) {
+    constructor(club: Club, rng: Random) {
         this.#faces = club.diceFaces();
-        this.rerollRng = rerollRng;
+        this.rerollRng = new Random(MersenneTwister19937.seed(rng.uint32()));
+        this.sliceRng = new Random(MersenneTwister19937.seed(rng.uint32()));
         this.shuffle();
     }
 
@@ -17,27 +22,45 @@ class ClubStatus {
         return this.#faces;
     }
 
-    currentFaceIndex(): number {
+    currentFaceIndex(): number|null {
         return this.#currentIndex;
     }
 
-    current(): number|null {
-        if (this.#currentIndex >= this.#faces.length) {
+    strokeCurrent(): {distance: number, sliceValues: (-1|0|1)[]}|null {
+        if (this.#currentIndex === null) {
             return null;
         }
-        return this.#faces[this.#currentIndex];
+        let distance = this.#faces[this.#currentIndex];
+        this.#currentIndex++;
+        if (this.#currentIndex >= this.#faces.length) {
+            this.#currentIndex = null;
+            this.#rerollLockout = REROLL_LOCKOUT;
+        }
+        let slice: (-1|0|1)[] = [];
+        for (let i = 0; i < distance; i++) {
+            slice.push(this.sliceRng.pick([-1, 0, 1]));
+        }
+        return {distance: distance, sliceValues: slice};
     }
 
-    next(): void {
-        if (this.#currentIndex >= this.#faces.length) {
-            return;
+    advanceLockout() {
+        if (this.#rerollLockout !== null && this.#rerollLockout > 0) {
+            this.#rerollLockout--;
         }
-        this.#currentIndex++;
+    }
+
+    current(): number|null {
+        return this.#currentIndex !== null ? this.#faces[this.#currentIndex] : null;
+    }
+
+    lockoutLeft(): number|null {
+        return this.#rerollLockout;
     }
 
     shuffle(): void {
         this.#faces = this.rerollRng.shuffle(this.#faces);
         this.#currentIndex = 0;
+        this.#rerollLockout = null;
     }
 }
 
