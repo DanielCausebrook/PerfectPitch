@@ -1,8 +1,7 @@
 import {MersenneTwister19937, Random} from "random-js";
 import {SoundEffect} from "./soundEffect";
-import {generateTeeAndHolePos, generateTerrain, Matrix2D,} from "./terrainGeneration";
-
-export type Position = [number, number];
+import {generateTeeAndHolePos, generateTerrain} from "./terrainGeneration";
+import {RectPoint, TiledRectRegion, RectRegion} from "./geometry";
 
 export enum CellType {
     Hole,
@@ -63,23 +62,12 @@ export class CellData {
     }
 }
 
-export enum Direction {
-    N,
-    NE,
-    E,
-    SE,
-    S,
-    SW,
-    W,
-    NW,
-}
-
 export class Course {
-    #layout: Matrix2D<CellType>;
-    #holePos: Position;
-    #teePos: Position;
+    #layout: TiledRectRegion<CellType>;
+    #holePos: RectPoint;
+    #teePos: RectPoint;
 
-    constructor(layout: Matrix2D<CellType>, holePos: Position, teePos: Position) {
+    constructor(layout: TiledRectRegion<CellType>, holePos: RectPoint, teePos: RectPoint) {
         this.#layout = layout;
         this.#holePos = holePos;
         this.#teePos = teePos;
@@ -92,38 +80,27 @@ export class Course {
         return new Course(map, holePos, teePos);
     }
 
+    bounds(): RectRegion {
+        return this.#layout.bounds;
+    }
+
     height(): number {
-        return this.#layout.height;
+        return this.#layout.bounds.height;
     }
 
     width(): number {
-        return this.#layout.width;
+        return this.#layout.bounds.width;
     }
 
-    cell(position: Position): CellType {
-        return this.#layout.data[position[0]][position[1]];
+    cell(position: RectPoint): CellType {
+        return this.#layout.get(position);
     }
 
-    tee(): Position {
+    tee(): RectPoint {
         return this.#teePos;
     }
 
-    isValidPosition(position: Position): boolean {
-        const x = position[0];
-        const y = position[1];
-        return x >= 0 && y >= 0 && x < this.width() && y < this.height();
-    }
-}
-
-export function moveInDirection(position: Position, direction: Direction): Position {
-    switch (direction) {
-        case Direction.N: return [position[0], position[1] + 1];
-        case Direction.NE: return [position[0] + 1, position[1] + 1];
-        case Direction.E: return [position[0] + 1, position[1]];
-        case Direction.SE: return [position[0] + 1, position[1] - 1];
-        case Direction.S: return [position[0], position[1] - 1];
-        case Direction.SW: return [position[0] - 1, position[1] - 1];
-        case Direction.W: return [position[0] - 1, position[1]];
-        case Direction.NW: return [position[0] - 1, position[1] + 1];
+    isValidPosition(position: RectPoint): boolean {
+        return this.#layout.bounds.contains(position);
     }
 }

@@ -1,119 +1,92 @@
 import {MersenneTwister19937, Random} from "random-js";
 import {createNoise2D, type NoiseFunction2D} from "simplex-noise";
-import {CellType, Direction, moveInDirection, type Position} from "./course";
+import {CellType} from "./course";
 import gaussian from "gaussian";
-
-export class Matrix2D<T> {
-    readonly width: number;
-    readonly height: number;
-    data: T[][];
-
-    constructor(matrix: T[][], width: number, height: number) {
-        this.width = width;
-        this.height = height;
-        this.data = matrix;
-    }
-
-    static of<T>(width: number, height: number, value: T): Matrix2D<T> {
-        return new Matrix2D(Array(width).fill(null).map(_ => Array(height).fill(value)), width, height);
-    }
-
-    static build<T>(width: number, height: number, fn: (x: number, y: number) => T): Matrix2D<T> {
-        let data = [];
-        for (let x = 0; x < width; x++) {
-            let col = [];
-            for (let y = 0; y < height; y++) {
-                col.push(fn(x, y));
-            }
-            data.push(col);
-        }
-        return new Matrix2D(data, width, height);
-    }
-
-    get(x: number, y: number): T {
-        return this.data[x][y];
-    }
-
-    copy() {
-        return new Matrix2D(this.data.map(col => col.slice()), this.width, this.height);
-    }
-}
+import {
+    HexRegion,
+    type Region,
+    type Point,
+    RectDirection,
+    RectRegion,
+    RectPoint,
+    TiledHexRegion,
+    type TiledRegion,
+    TiledRectRegion
+} from "./geometry";
 
 export class ValMapBuilder {
-    #width: number;
-    #height: number;
+    readonly plane: Region;
     #rng: Random;
     #globalScale: number = 1;
 
-    constructor(width: number, height: number, rng: Random) {
-        this.#width = width;
-        this.#height = height;
+    constructor(plane: Region, rng: Random) {
+        this.plane = plane;
         this.#rng = rng;
     }
 
-    fromMatrix2D(matrix: Matrix2D<number>): TerrainMap {
-        if (this.#width !== matrix.width || this.#height !== matrix.height) {
+    fromTiledPlane(tiledPlane: TiledRegion<number>): TerrainMap {
+        if (!this.plane.equals(tiledPlane.bounds)) {
             throw new Error("Dimensions do not match.");
         }
-        return new TerrainMap(matrix);
+        return new TerrainMap(tiledPlane);
     }
 
     setGlobalNoiseScale(scale: number) {
         this.#globalScale = scale;
     }
 
-    buildMap(fn: (x:number, y:number) => number): TerrainMap {
-        return new TerrainMap(Matrix2D.build(this.#width, this.#height, fn));
+    buildMap(fn: (p: Point) => number): TerrainMap {
+        return new TerrainMap(this.plane.tilingBuild(fn));
     }
 
     buildNoiseMap(scale: number) {
         let noise = new Noise2D(scale*this.#globalScale, new Random(MersenneTwister19937.seed(this.#rng.uint32())));
-        return this.buildMap((x, y) => 0.5*noise.get(x, y) + 0.5);
+        return this.buildMap(p => 0.5*noise.get(p) + 0.5);
     }
 
     buildWarpNoiseMap(scale: number, warpScale: number, warpAmount: number) {
         let noise = new WarpNoise2D(scale*this.#globalScale, warpScale*this.#globalScale, warpAmount/this.#globalScale, new Random(MersenneTwister19937.seed(this.#rng.uint32())));
-        return this.buildMap((x, y) => 0.5*noise.get(x, y) + 0.5);
+        return this.buildMap(p => 0.5*noise.get(p) + 0.5);
     }
 
     buildLoopyNoiseMap(scale: number, warpAmount: number, warpVarianceScale: number, warpVariance: number, loopScale: number, loopiness: number) {
         let noise = new LoopyNoise2D(scale*this.#globalScale, warpAmount/this.#globalScale, warpVarianceScale*this.#globalScale, warpVariance/this.#globalScale, loopScale*this.#globalScale, loopiness, new Random(MersenneTwister19937.seed(this.#rng.uint32())));
-        return this.buildMap((x, y) => 0.5*noise.get(x, y) + 0.5);
+        return this.buildMap(p => 0.5*noise.get(p) + 0.5);
     }
 
     sum(center: number, ...maps: TerrainMap[]): TerrainMap {
-        return this.buildMap((x, y) => {
-            return maps.reduce((s, m) => s + m.get(x, y) - center, center);
+        return this.buildMap(p => {
+            return maps.reduce((s, m) => s + m.get(p) - center, center);
         });
     }
 
     prod(...maps: TerrainMap[]): TerrainMap {
-        return this.buildMap((x, y) => {
-            return maps.reduce((s, m) => s * m.get(x, y), 1);
+        return this.buildMap(p => {
+            return maps.reduce((s, m) => s * m.get(p), 1);
         });
     }
 }
 
 export class TerrainMap {
-    inner: Matrix2D<number>;
+    inner: TiledRegion<number>;
 
-    constructor(map: Matrix2D<number>) {
+    constructor(map: TiledRegion<number>) {
         this.inner = map;
     }
 
     apply(fn: (v: number) => number) {
-        this.inner.data.forEach(col => col.forEach((v, i) => col[i] = fn(v)));
+        this.inner.mapInPlace(v => fn(v));
         return this;
     }
 
     shift(amount: number) {
-        this.inner.data.forEach(col => col.forEach((v, i) => col[i] = v + amount));
+        this.inner.mapInPlace(v => v + amount);
         return this;
     }
 
     scale(factor: number, center?: number) {
         center = center ?? 0;
-        this.inner.data.forEach(col => col.forEach((v, i) => col[i] = center + (v-center) * factor));
+        this.inner.mapInPlace(v => center + (v-center) * factor);
         return this;
     }
 
@@ -121,28 +94,34 @@ export class TerrainMap {
         center = center ?? 0;
         range = range ?? 1;
         let exponent = Math.pow(Math.E, -amount);
-        this.inner.data.forEach(col => col.forEach((v, i) => {
+        this.inner.mapInPlace(v => {
             let adjusted = v - center;
             let sign = Math.sign(adjusted);
-            col[i] = center + sign*Math.pow(sign*adjusted/range, exponent)*range;
-        }));
+            return center + sign*Math.pow(sign*adjusted/range, exponent)*range;
+        })
         return this;
     }
 
     blur(sigma: number) {
-        this.inner = gaussianBlur(this.inner, sigma);
+        if (this.inner instanceof TiledRectRegion) {
+            this.inner = rectGaussianBlur(this.inner, sigma);
+        } else if (this.inner instanceof TiledHexRegion) {
+            this.inner = hexGaussianBlur(this.inner, sigma);
+        } else {
+            throw new Error("Unsupported TiledPlane for blur().");
+        }
         return this;
     }
 
     invert() {
-        this.inner.data.forEach(col => col.forEach((v, i) => col[i] = 1-v));
+        this.inner.mapInPlace(v => 1-v);
         return this;
     }
 
     clamp(low?: number, high?: number) {
         low = low??0;
         high = high??1;
-        this.inner.data.forEach(col => col.forEach((v, i) => col[i] = Math.min(high, Math.max(low, v))));
+        this.inner.mapInPlace(v => Math.min(high, Math.max(low, v)));
         return this;
     }
 
@@ -150,25 +129,17 @@ export class TerrainMap {
         return new TerrainMap(this.inner.copy());
     }
 
-    get(x: number, y: number) {
-        return this.inner.data[x][y];
+    get(point: Point) {
+        return this.inner.get(point);
     }
 
     threshold(value:number) {
-        this.inner.data.forEach(col => col.forEach((v, i) => col[i] = v >= value ? 1 : 0));
+        this.inner.mapInPlace(v => v >= value ? 1 : 0);
         return this;
     }
 
-    boolThreshold(value: number) {
-        return new Matrix2D(
-            this.inner.data.map(col => col.map(v => v >= value)),
-            this.inner.width,
-            this.inner.height
-        );
-    }
-
-    toArray() {
-        return this.inner.data.slice();
+    boolThreshold(value: number): TiledRegion<boolean> {
+        return this.inner.map(v => v >= value);
     }
 }
 
@@ -185,8 +156,9 @@ export class Noise2D {
         this.#offsetY = rng.real(0, 1);
     }
 
-    get(x: number, y: number) {
-        return this.#noise(x/this.#scale + this.#offsetX, y/this.#scale + this.#offsetY);
+    get(point: Point) {
+        const p = point.toRect();
+        return this.#noise(p.x/this.#scale + this.#offsetX, p.y/this.#scale + this.#offsetY);
     }
 }
 
@@ -204,10 +176,12 @@ export class WarpNoise2D {
         this.#warpY = new Noise2D(warpScale, rng);
     }
 
-    get(x: number, y: number) {
-        let xWarp = this.#warpAmount*this.#warpX.get(x, y);
-        let yWarp = this.#warpAmount*this.#warpY.get(x, y);
-        return this.#noise.get(x + xWarp, y + yWarp);
+    get(point: Point) {
+        const warp = new RectPoint(
+            this.#warpAmount*this.#warpX.get(point),
+            this.#warpAmount*this.#warpY.get(point),
+        );
+        return this.#noise.get(point.add(warp));
     }
 }
 
@@ -230,55 +204,60 @@ export class LoopyNoise2D {
         this.#angleAmount = loopiness*loopScale;
     }
 
-    get(x: number, y: number) {
+    get(point: Point) {
         const tau = 2*Math.PI;
-        let angle = this.#angleAmount * this.#warpAngle.get(x, y) * tau; // Radians
+        let angle = this.#angleAmount * this.#warpAngle.get(point) * tau; // Radians
         angle = ((angle % tau) + tau) % tau;
-        let magnitude = this.#warpAmount + this.#warpVarianceAmount * this.#warpVariance.get(x, y);
-        let xWarp:number, yWarp:number;
+        let magnitude = this.#warpAmount + this.#warpVarianceAmount * this.#warpVariance.get(point);
+        let warp: RectPoint;
         if (angle < 0.25*tau) {
-            yWarp = magnitude*Math.sin(angle);
-            xWarp = magnitude*Math.cos(angle);
+            warp = new RectPoint(
+                magnitude*Math.cos(angle),
+                magnitude*Math.sin(angle),
+            );
         } else if (angle < 0.5*tau) {
-            yWarp = magnitude*Math.cos(angle-0.25*tau);
-            xWarp = -magnitude*Math.sin(angle-0.25*tau);
+            warp = new RectPoint(
+                -magnitude*Math.sin(angle-0.25*tau),
+                magnitude*Math.cos(angle-0.25*tau),
+            );
         } else if (angle < 0.75*tau) {
-            yWarp = -magnitude*Math.sin(angle-0.5*tau);
-            xWarp = -magnitude*Math.cos(angle-0.5*tau);
+            warp = new RectPoint(
+                -magnitude*Math.cos(angle-0.5*tau),
+                -magnitude*Math.sin(angle-0.5*tau),
+            );
         } else {
-            yWarp = -magnitude*Math.cos(angle-0.75*tau);
-            xWarp = magnitude*Math.sin(angle-0.75*tau);
+            warp = new RectPoint(
+                magnitude*Math.sin(angle-0.75*tau),
+                -magnitude*Math.cos(angle-0.75*tau),
+            );
         }
         Math.tan(angle);
-        return this.#noise.get(x + xWarp, y + yWarp);
+        return this.#noise.get(point.add(warp));
     }
 }
 
-export function loopErasedRandomWalk( walls: Matrix2D<boolean>,start: Position, end: Position, rng: Random) {
+export function loopErasedRandomWalk(walls: TiledRectRegion<boolean>, start: RectPoint, end: RectPoint, rng: Random): RectPoint[] {
     let markDelay = 1;
-    function positionHash(pos: Position) { return pos[0] + ',' + pos[1]; }
+    function positionHash(pos: RectPoint) { return pos.x + ',' + pos.y; }
     let startHash = positionHash(start);
-    let path: {position: Position, markedRegion: string[]}[] = [{position: start, markedRegion: [startHash]}];
+    let path: {position: RectPoint, markedRegion: string[]}[] = [{position: start, markedRegion: [startHash]}];
     let markedCells: Set<string> = new Set([startHash]);
-    let currentPosition: Position = start;
+    let currentPosition: RectPoint = start;
     function pathPop() {
-        const removed = path.pop() as {position: Position; markedRegion: string[]};
+        const removed = path.pop() as {position: RectPoint; markedRegion: string[]};
         for (const markedHash of removed.markedRegion) {
             markedCells.delete(markedHash);
         }
     }
-    function isOutOfBounds(p: Position): boolean {
-        return (p[0] < 0 || p[0] >= walls.width || p[1] < 0 || p[1] >= walls.height)
-            || ((p[0] === 0 || p[0] === walls.width - 1) && (p[1] === 0 || p[1] === walls.height - 1))
-            || walls.data[p[0]][p[1]]; // Disallow corners because it can get stuck in corners.
-    }
-    function isEnd(p: Position): boolean {
-        return p[0] === end[0] && p[1] === end[1];
+    function isOutOfBounds(p: RectPoint): boolean {
+        return !walls.bounds.contains(p)
+            || ((p.x === 0 || p.x === walls.bounds.width - 1) && (p.y === 0 || p.y === walls.bounds.height - 1)) // Disallow corners because it can get stuck in corners.
+            || walls.get(p);
     }
 
     while (true) {
-        let nextDirection: Direction = rng.integer(0, 7);
-        let nextPosition = moveInDirection(currentPosition, nextDirection);
+        let nextDirection: RectDirection = rng.integer(0, 7);
+        let nextPosition = currentPosition.move(nextDirection);
         if (isOutOfBounds(nextPosition)) {
             // If path goes off edge, step back 2 steps. (Not required, but makes path avoid edge)
             for (let i = 0; i < Math.min(2, path.length - 1); i++) {
@@ -288,7 +267,7 @@ export function loopErasedRandomWalk( walls: Matrix2D<boolean>,start: Position, 
             continue;
         }
 
-        if (isEnd(nextPosition)) {
+        if (nextPosition.equals(end)) {
             path.push({position: end, markedRegion: []});
             return path.map(step => step.position);
         }
@@ -305,7 +284,7 @@ export function loopErasedRandomWalk( walls: Matrix2D<boolean>,start: Position, 
                 pathPop();
                 lastStep = path[path.length - 1];
             }
-            if (lastStep.position[0] === nextPosition[0] && lastStep.position[1] === nextPosition[1]) {
+            if (lastStep.position.equals(nextPosition)) {
                 currentPosition = lastStep.position;
             } else {
                 for (let i = 0; i < markDelay; i++) {
@@ -322,8 +301,8 @@ export function loopErasedRandomWalk( walls: Matrix2D<boolean>,start: Position, 
             if (delayedStep !== undefined) {
                 for (let y = -1; y < 2; y++) {
                     for (let x = -1; x < 2; x++) {
-                        let cellToMark: Position = [delayedStep.position[0] + x, delayedStep.position[1] + y];
-                        if (isEnd(cellToMark)) {
+                        let cellToMark: RectPoint = delayedStep.position.add(new RectPoint(x, y));
+                        if (cellToMark.equals(end)) {
                             for (let i = 0; i < markDelay; i++) {
                                 pathPop();
                             }
@@ -348,7 +327,7 @@ export function loopErasedRandomWalk( walls: Matrix2D<boolean>,start: Position, 
     }
 }
 
-export function gaussianBlur(matrix: Matrix2D<number>, sigma: number): Matrix2D<number> {
+export function rectGaussianBlur(matrix: TiledRectRegion<number>, sigma: number): TiledRectRegion<number> {
     if (sigma === 0) return matrix.copy();
     const distribution = gaussian(0, sigma);
     let gaussianValues = [distribution.cdf(0.5)-distribution.cdf(-0.5)];
@@ -377,12 +356,43 @@ export function gaussianBlur(matrix: Matrix2D<number>, sigma: number): Matrix2D<
         });
         return result;
     }
-    let xBlurredInverted: number[][] = blurRowsIntoInverted(matrix.width, matrix.height, matrix.data);
-    let blurred: number[][] = blurRowsIntoInverted(matrix.height, matrix.width, xBlurredInverted);
-    return new Matrix2D(blurred, matrix.width, matrix.height);
+    let xBlurredInverted: number[][] = blurRowsIntoInverted(matrix.bounds.width, matrix.bounds.height, matrix.data);
+    let blurred: number[][] = blurRowsIntoInverted(matrix.bounds.height, matrix.bounds.width, xBlurredInverted);
+    return new TiledRectRegion(matrix.bounds, blurred);
 }
 
-export function generateTeeAndHolePos(width: number, height: number, xEdge: number, yEdge: number, rng: Random): [Position, Position] {
+function hexGaussianBlur(tiling: TiledHexRegion<number>, sigma: number): TiledHexRegion<number> {
+    const maxDist = 3*sigma;
+    const minL = Math.ceil(-maxDist);
+    const maxL = Math.ceil(maxDist);
+    const plane = new HexRegion(minL, maxL, minL, maxL, minL, maxL);
+    const distribution = gaussian(0, sigma);
+    let kernel = plane.tilingBuild(p => {
+        let dist = p.magnitude();
+        return distribution.cdf(dist + 0.5) - distribution.cdf(dist - 0.5);
+    });
+
+    let result = tiling.bounds.tilingOf(0);
+    tiling.forEach((value, p) => {
+        if (value == 0) {
+            return;
+        }
+        const localKernel = kernel.map((kValue, kP) => tiling.bounds.contains(p.add(kP)) ? kValue : 0);
+        let kernelSum = 0;
+        localKernel.forEach(kValue => kernelSum += kValue);
+        localKernel.forEach((kValue, kP) => {
+            if (kValue == 0) {
+                return;
+            }
+            const target = p.add(kP);
+            result.set(target, result.get(target) + value*kValue/kernelSum);
+        })
+    });
+
+    return result;
+}
+
+export function generateTeeAndHolePos(width: number, height: number, xEdge: number, yEdge: number, rng: Random): [RectPoint, RectPoint] {
     const positionLimit = 0.4;
 
     const positionRng = new Random(MersenneTwister19937.seed(rng.uint32()));
@@ -393,18 +403,18 @@ export function generateTeeAndHolePos(width: number, height: number, xEdge: numb
         }
         return [posLong, positionRng.integer(shortEdge, shortSide - 2*shortEdge - 1)]
     }
-    let holePos: Position, teePos: Position;
+    let holePos: RectPoint, teePos: RectPoint;
     let teeAtTop = positionRng.pick([-1, 1]);
     if (width > height) {
         let [x, y] = generatePosition(width, height, xEdge, yEdge, -teeAtTop*positionLimit);
-        teePos = [x, y];
+        teePos = new RectPoint(x, y);
         [x, y] = generatePosition(width, height, xEdge, yEdge, teeAtTop*positionLimit);
-        holePos = [x, y];
+        holePos = new RectPoint(x, y);
     } else {
         let [y, x] = generatePosition(height, width, yEdge, xEdge, -teeAtTop*positionLimit);
-        teePos = [x, y];
+        teePos = new RectPoint(x, y);
         [y, x] = generatePosition(height, width, yEdge, xEdge, teeAtTop*positionLimit);
-        holePos = [x, y];
+        holePos = new RectPoint(x, y);
     }
 
     return [teePos, holePos];
@@ -505,19 +515,23 @@ export function createTerrainDebugSettings() {
 }
 
 export class DebugMap {
-    map: Matrix2D<number|boolean>;
+    map: TiledRegion<number|boolean>;
 
-    constructor(map: Matrix2D<number|boolean>) {
+    constructor(map: TiledRegion<number|boolean>) {
         this.map = map;
     }
 }
 
-export function generateTerrainDebug(width: number, height: number, xEdge: number, yEdge: number, teePos: Position, holePos: Position, rng: Random, debug?: TerrainDebugSettings): Matrix2D<CellType> | DebugMap {
-    let mB = new ValMapBuilder(width, height, rng);
+export function generateTerrainDebug(width: number, height: number, xEdge: number, yEdge: number, teePos: RectPoint, holePos: RectPoint, rng: Random, debug?: TerrainDebugSettings): TiledRectRegion<CellType> | DebugMap {
+    const plane = new RectRegion(width, height);
+    let mB = new ValMapBuilder(plane, rng);
 
     if (debug?.is('map', 'noise')) return new DebugMap(mB.buildLoopyNoiseMap(10, 5, 20, 2, 45, 0.03).inner);
 
-    let edgeProximityMap = mB.buildMap((x, y) => {
+    let edgeProximityMap = mB.buildMap(p => {
+        const rectPoint = p.toRect();
+        const x = rectPoint.x;
+        const y = rectPoint.y;
         let edgeProximity = 1;
         if (x <= xEdge + 1) {
             edgeProximity *= Math.pow((x+1.5)/(xEdge+3.5), 0.85);
@@ -536,12 +550,14 @@ export function generateTerrainDebug(width: number, height: number, xEdge: numbe
     if (debug?.is('map', 'edge')) return new DebugMap(edgeProximityMap.inner);
 
 
-    let center: Position = [Math.round((teePos[0] + holePos[0])/2), Math.round((teePos[1] + holePos[1])/2)];
-    let distance = Math.hypot(teePos[0]-holePos[0], teePos[1]-holePos[1])
+    let center: RectPoint = new RectPoint(Math.round((teePos.x + holePos.x)/2), Math.round((teePos.y + holePos.y)/2));
+    let distance = teePos.sub(holePos).magnitude();
     let radius = Math.min(Math.min(width-2*xEdge, height-2*yEdge) / 6, distance/2-1.5);
-    let walls = Matrix2D.build(width, height, (x, y) => {
-        if (Math.abs(center[0]-x) <= radius && Math.abs(center[1]-y) <= radius
-            && Math.hypot(center[0] - x, center[1] - y) < radius) {
+    let walls = plane.tilingBuild(p => {
+        const x = p.x;
+        const y = p.y;
+        if (Math.abs(center.x-x) <= radius && Math.abs(center.y-y) <= radius
+            && center.sub(p).magnitude() < radius) {
             return true;
         }
         if (x < xEdge || x >= width - xEdge || y < yEdge || y >= height - yEdge) {
@@ -553,32 +569,34 @@ export function generateTerrainDebug(width: number, height: number, xEdge: numbe
 
     let path = loopErasedRandomWalk(walls, teePos, holePos, new Random(MersenneTwister19937.seed(rng.uint32())));
 
-    let rawPathMap = Matrix2D.of(width, height, 0);
+    let rawPathMap = plane.tilingOf(0);
     for (const pos of path) {
-        rawPathMap.data[pos[0]][pos[1]] = 1;
+        rawPathMap.set(pos, 1);
     }
-    let pathMap = mB.fromMatrix2D(rawPathMap.copy());
-    let endsMap = mB.fromMatrix2D(Matrix2D.of(width, height, 0));
+    let pathMap = mB.fromTiledPlane(rawPathMap.copy());
 
+    let endsTiling = plane.tilingOf(0);
     for (const offset of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-        if (endsMap.inner.data[holePos[0]+offset[0]][holePos[1]+offset[1]] !== undefined)
-            endsMap.inner.data[holePos[0]+offset[0]][holePos[1]+offset[1]] = 0.65;
+        if (endsTiling.data[holePos.x+offset[0]][holePos.y+offset[1]] !== undefined)
+            endsTiling.data[holePos.x+offset[0]][holePos.y+offset[1]] = 0.65;
     }
     for (const offset of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-        if (endsMap.inner.data[teePos[0]+offset[0]][teePos[1]+offset[1]] === 0)
-            endsMap.inner.data[teePos[0]+offset[0]][teePos[1]+offset[1]] = 0.45;
+        if (endsTiling.data[teePos.x+offset[0]][teePos.y+offset[1]] === 0)
+            endsTiling.data[teePos.x+offset[0]][teePos.y+offset[1]] = 0.45;
     }
     let endWeights = [1.5, 1, 0.85, 0.7, 0.5, 0.3];
     endWeights.forEach((weight, i) => {
         let stepFromStart = path[i];
         if (stepFromStart !== undefined) {
-            endsMap.inner.data[stepFromStart[0]][stepFromStart[1]] += weight;
+            endsTiling.data[stepFromStart.x][stepFromStart.y] += weight;
         }
         let stepFromEnd = path[path.length - 1 - i];
         if (stepFromEnd !== undefined) {
-            endsMap.inner.data[stepFromEnd[0]][stepFromEnd[1]] += weight;
+            endsTiling.data[stepFromEnd.x][stepFromEnd.y] += weight;
         }
     })
+    let endsMap = mB.fromTiledPlane(endsTiling);
+
     pathMap.blur(1.7).scale(3).clamp();
     endsMap.blur(1.7).scale(4.5).clamp();
 
@@ -647,20 +665,20 @@ export function generateTerrainDebug(width: number, height: number, xEdge: numbe
     if (debug?.is('map', 't')) return new DebugMap(treeMapV.inner);
     let treeMap = treeMapV.boolThreshold(0.65);
 
-    return Matrix2D.build(width, height, (x, y) => {
-        if (holePos[0] === x && holePos[1] === y) {
+    return plane.tilingBuild(p => {
+        if (p.equals(holePos)) {
             return CellType.Hole;
         }
         switch (true) {
-            case waterMap.data[x][y]:
+            case waterMap.get(p):
                 return CellType.Water;
-            case rockMap.data[x][y]:
+            case rockMap.get(p):
                 return CellType.Rock;
-            case treeMap.data[x][y]:
+            case treeMap.get(p):
                 return CellType.Tree;
-            case sandMap.data[x][y]:
+            case sandMap.get(p):
                 return CellType.Sand;
-            case fairwayMap.data[x][y]:
+            case fairwayMap.get(p):
                 return CellType.Fairway;
             default:
                 return CellType.Rough;
@@ -668,7 +686,7 @@ export function generateTerrainDebug(width: number, height: number, xEdge: numbe
     });
 }
 
-export function generateTerrain(width: number, height: number, xEdge: number, yEdge: number, teePos: Position, holePos: Position, rng: Random): Matrix2D<CellType> {
+export function generateTerrain(width: number, height: number, xEdge: number, yEdge: number, teePos: RectPoint, holePos: RectPoint, rng: Random): TiledRectRegion<CellType> {
     let maybeTerrain = generateTerrainDebug(width, height, xEdge, yEdge, teePos, holePos, rng);
     if (maybeTerrain instanceof DebugMap) {
         throw new Error("Terrain Generation returned debug map without any debug settings being supplied.");

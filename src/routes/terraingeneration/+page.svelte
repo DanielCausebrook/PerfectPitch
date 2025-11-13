@@ -7,7 +7,8 @@
         generateTeeAndHolePos, generateTerrainDebug,
         TerrainDebugBool, TerrainDebugRadioGroup,
     } from "../../terrainGeneration";
-    import {type Matrix2D, TerrainDebugNumber} from "../../terrainGeneration.js";
+    import {TerrainDebugNumber} from "../../terrainGeneration.js";
+    import {TiledRectRegion} from "../../geometry";
 
     let canvases: {element: HTMLCanvasElement|null}[] = Array(24).fill(null).map(() => {return {element: null}});
     let seed = MersenneTwister19937.autoSeed().next();
@@ -20,18 +21,22 @@
 
     const debugSettings = createTerrainDebugSettings();
 
-    function renderMap(map: Matrix2D<CellType>|DebugMap, ctx: CanvasRenderingContext2D) {
+    function renderMap(map: TiledRectRegion<CellType>|DebugMap, ctx: CanvasRenderingContext2D) {
         if (map instanceof DebugMap) {
-            map.map.data.forEach((col, x) => col.forEach((value, y) => {
-                let numValue = 0;
-                if (typeof value == "number") {
-                    numValue = value;
-                } else if (typeof value == "boolean") {
-                    numValue = value ? 1 : 0;
-                }
-                ctx.fillStyle = `color-mix(in oklch, hsl(0, 50%, 50%) ${numValue*100}%, hsl(240, 50%, 50%))`;
-                ctx.fillRect(x*cellDimensions, y*cellDimensions, cellDimensions, cellDimensions);
-            }));
+            if (map.map instanceof TiledRectRegion) {
+                map.map.forEach((value, p) => {
+                    let numValue = 0;
+                    if (typeof value == "number") {
+                        numValue = value;
+                    } else if (typeof value == "boolean") {
+                        numValue = value ? 1 : 0;
+                    }
+                    ctx.fillStyle = `color-mix(in oklch, hsl(0, 50%, 50%) ${numValue * 100}%, hsl(240, 50%, 50%))`;
+                    ctx.fillRect(p.x * cellDimensions, p.y * cellDimensions, cellDimensions, cellDimensions);
+                });
+            } else {
+                throw new Error("Cannot render this type of tiled region.");
+            }
         } else {
             map.data.forEach((col, x) => col.forEach((cell, y) => {
                 ctx.fillStyle = getCellData(cell).primaryColor;

@@ -1,16 +1,15 @@
 <script lang="ts">
     import ClubSelector from "./ClubSelector.svelte";
     import {type Club} from "./club";
-    import {CellBlockType, CellType, Course, Direction, getCellData, moveInDirection, type Position} from "./course";
+    import {CellBlockType, CellType, Course, getCellData} from "./course";
     import Cell from "./Cell.svelte";
     import {Player} from "./player";
     import {SoundEffect} from "./soundEffect";
     import {timeout} from "./utilities";
-    import {rotateDirection} from "./cellAnimation";
     import {createInteractAnimation, createSinkAnimation, playWinAnimation} from "./cellAnimation.js";
-    import {Matrix2D} from "./terrainGeneration";
     import {IconArrowRight, IconChevronCompactUp} from "@tabler/icons-svelte";
     import {on} from "svelte/events";
+    import {RectDirection, RectPoint, rotateRectDirection, TiledRectRegion} from "./geometry";
 
 
     export let course: Course;
@@ -18,45 +17,42 @@
 
     const listenerRemovers: (() => void)[] = [];
 
-    let cells: Matrix2D<HTMLElement> = Matrix2D.of(course.width(), course.height(), null) as unknown as Matrix2D<HTMLElement>;
-    function registerCell(element: HTMLElement, data: Position) {
-        cells.data[data[0]][data[1]] = element;
+    let cells: TiledRectRegion<HTMLElement> = TiledRectRegion.of(course.bounds(), null) as unknown as TiledRectRegion<HTMLElement>;
+    function registerCell(element: HTMLElement, data: RectPoint) {
+        cells.set(data, element);
     }
 
     class DirectionRequest {
-        #resolve: (direction: Direction) => void;
+        #resolve: (direction: RectDirection) => void;
         #onChange: (request: DirectionRequest) => void;
-        dragCenter: Position|null = null;
-        currentDragDirection: Direction|null = null;
+        dragCenter: RectPoint|null = null;
+        currentDragDirection: RectDirection|null = null;
         touchId: number|null = null;
         static readonly deadZone = 35;
 
-        constructor(resolve: (direction: Direction) => void, onChange: (request: DirectionRequest) => void) {
+        constructor(resolve: (direction: RectDirection) => void, onChange: (request: DirectionRequest) => void) {
             this.#resolve = resolve;
             this.#onChange = onChange;
         }
-        #setCurrentDragDirection(direction: Direction|null): void {
+        #setCurrentDragDirection(direction: RectDirection|null): void {
             if (direction !== this.currentDragDirection) {
                 this.currentDragDirection = direction;
                 this.#onChange(this);
             }
         }
-        dragStart(coordinates: Position, touchId?: number) {
+        dragStart(coordinates: RectPoint, touchId?: number) {
             if (this.dragCenter === null) {
-                this.dragCenter = coordinates.slice() as Position;
+                this.dragCenter = coordinates;
                 this.currentDragDirection = null;
                 this.touchId = touchId ?? null;
                 this.#onChange(this);
             }
         }
-        dragMove(coordinates: Position, touchId?: number) {
+        dragMove(coordinates: RectPoint, touchId?: number) {
             if (this.dragCenter !== null && this.touchId === (touchId ?? null)) {
-                let vector = [
-                    coordinates[0] - this.dragCenter[0],
-                    coordinates[1] - this.dragCenter[1],
-                ];
+                let vector = coordinates.sub(this.dragCenter);
+                let distance = vector.magnitude();
 
-                let distance = Math.hypot(vector[0], vector[1]);
                 if (this.currentDragDirection === null && distance < DirectionRequest.deadZone + 5) {
                     return;
                 } else if (distance < DirectionRequest.deadZone) {
@@ -64,7 +60,7 @@
                     return;
                 }
 
-                let angle = Math.atan2(vector[1], vector[0]);
+                let angle = vector.angle();
                 let adjustedAngle = (10 - (4 * angle / Math.PI)) % 8;
                 if (this.currentDragDirection === null) {
                     this.#setCurrentDragDirection(Math.round(adjustedAngle) % 8);
@@ -99,11 +95,11 @@
     }
     let directionInputElement: HTMLElement;
     let directionRequest: DirectionRequest|null = null;
-    let relativeDragCenter: Position|null = null;
-    let currentDragDirection: Direction|null = null;
+    let relativeDragCenter: RectPoint|null = null;
+    let currentDragDirection: RectDirection|null = null;
     let cellDirectionHighlights: Map<string, string> = new Map();
 
-    async function selectDirection(): Promise<Direction> {
+    async function selectDirection(): Promise<RectDirection> {
         return new Promise(resolve => {
             directionRequest = new DirectionRequest(
                 direction => {
@@ -116,7 +112,8 @@
                         relativeDragCenter = null;
                     } else {
                         let inputElementPos = directionInputElement.getBoundingClientRect();
-                        relativeDragCenter = [request.dragCenter[0] - inputElementPos.left, request.dragCenter[1] - inputElementPos.top];
+                        let inputElementPoint = new RectPoint(inputElementPos.left, inputElementPos.top);
+                        relativeDragCenter = request.dragCenter.sub(inputElementPoint);
                     }
                     currentDragDirection = request.currentDragDirection;
                     updateCellDirectionHighlight();
@@ -134,8 +131,8 @@
         }
         let highlightPos = player.position;
         player.clubStatus(selectedClub.type).shotPreviewHighlights().forEach(color => {
-            cellDirectionHighlights.set(`[${highlightPos[0]}, ${highlightPos[1]}]`, color);
-            highlightPos = moveInDirection(highlightPos, direction);
+            cellDirectionHighlights.set(`[${highlightPos.x}, ${highlightPos.y}]`, color);
+            highlightPos = highlightPos.move(direction);
         });
         cellDirectionHighlights = cellDirectionHighlights;
     }
@@ -145,7 +142,7 @@
         on(element, "mousedown", event => {
             if (event.button === 0 && directionRequest !== null) {
                 event.preventDefault();
-                directionRequest.dragStart([event.x, event.y]);
+                directionRequest.dragStart(new RectPoint(event.x, event.y));
             }
         });
         listenerRemovers.push(on(document, "mouseup", event => {
@@ -159,14 +156,14 @@
                 if ((event.buttons & 1) !== 1) {
                     directionRequest.dragEnd();
                 }
-                directionRequest.dragMove([event.x, event.y]);
+                directionRequest.dragMove(new RectPoint(event.x, event.y));
             }
         }));
         element.addEventListener("touchstart", event => {
             if (directionRequest !== null) {
                 event.preventDefault();
                 let touch = event.changedTouches[0];
-                directionRequest.dragStart([touch.clientX, touch.clientY], touch.identifier);
+                directionRequest.dragStart(new RectPoint(touch.clientX, touch.clientY), touch.identifier);
             }
         });
         listenerRemovers.push(on(document, "touchend", event => {
@@ -194,7 +191,7 @@
                 for (const changedTouch of event.changedTouches) {
                     if (changedTouch.identifier === directionRequest.touchId) {
                         event.preventDefault();
-                        directionRequest.dragMove([changedTouch.clientX, changedTouch.clientY], changedTouch.identifier);
+                        directionRequest.dragMove(new RectPoint(changedTouch.clientX, changedTouch.clientY), changedTouch.identifier);
                     }
                 }
             }
@@ -251,7 +248,7 @@
         let distanceBounced = 0;
         let slicedYet = false;
 
-        function updatePosition(pos: Position) {
+        function updatePosition(pos: RectPoint) {
             player.position = pos;
         }
 
@@ -265,10 +262,10 @@
             distanceMoved++;
             let slice = sliceValues.shift() ?? 0;
             if (!slicedYet && distanceMoved >= clubForShot.sliceFrom() && distanceBounced === 0 && slice !== 0) {
-                direction = rotateDirection(direction, slice);
+                direction = rotateRectDirection(direction, slice);
                 slicedYet = true;
             }
-            let newPosition = moveInDirection(player.position, direction);
+            let newPosition = player.position.move(direction);
             if (!course.isValidPosition(newPosition)) {
                 if (distanceMoved === 1) await timeout(200);
                 distanceMoved--;
@@ -281,8 +278,8 @@
             if (cellData.blockType === CellBlockType.Block) {
                 if (distanceMoved === 1) await timeout(200);
                 distanceMoved--;
-                createInteractAnimation(cellData.primaryColor, 1, rotateDirection(direction, 2))
-                    .play(cells.get(...newPosition));
+                createInteractAnimation(cellData.primaryColor, 1, rotateRectDirection(direction, 2))
+                    .play(cells.get(newPosition));
                 cellData.blockSoundEffect?.play();
                 movementRemaining = 0;
                 break;
@@ -290,8 +287,8 @@
                 updatePosition(newPosition);
                 await timeout(200);
                 if (movementRemaining > 0) {
-                    createInteractAnimation(cellData.primaryColor, 1, rotateDirection(direction, 2))
-                        .play(cells.get(...newPosition));
+                    createInteractAnimation(cellData.primaryColor, 1, rotateRectDirection(direction, 2))
+                        .play(cells.get(newPosition));
                     cellData.blockSoundEffect?.play();
                 }
                 movementRemaining = 0;
@@ -299,8 +296,7 @@
             }
             updatePosition(newPosition);
             if (movementRemaining === 0 && distanceBounced < cellData.rollDistance && clubForShot.bounces()) {
-                createInteractAnimation(cellData.primaryColor, 0.5, direction)
-                    .play(cells.get(...newPosition));
+                createInteractAnimation(cellData.primaryColor, 0.5, direction).play(cells.get(newPosition));
                 distanceBounced++;
                 movementRemaining++;
             }
@@ -321,7 +317,7 @@
             player.addStroke();
             player = player;
             await createSinkAnimation(cellData.primaryColor, direction)
-                .play(cells.get(...player.position));
+                .play(cells.get(player.position));
             showBall = true;
             player.position = startingPosition;
         } else if (cell === CellType.Hole) {
@@ -370,16 +366,16 @@
             {#each {length: course.height()} as _, y}
                 {#each {length: course.width()} as _, x}
                     {@const highlight = cellDirectionHighlights.get(`[${[x, y][0]}, ${[x, y][1]}]`) ?? null}
-                    <div class="cell" class:direction-highlight={highlight !== null} style="{highlight !== null ? `outline-color: ${highlight}; `: ''}" use:registerCell={[x, y]}>
+                    <div class="cell" class:direction-highlight={highlight !== null} style="{highlight !== null ? `outline-color: ${highlight}; `: ''}" use:registerCell={new RectPoint(x, y)}>
                         {#key course}
-                            <Cell size={20} cellType={course === null ? CellType.Water : course.cell([x, y])} hasBall={course !== null && showBall && player.position[0] === x && player.position[1] === y} />
+                            <Cell size={20} cellType={course === null ? CellType.Water : course.cell(new RectPoint(x, y))} hasBall={course !== null && showBall && player.position.x === x && player.position.y === y} />
                         {/key}
                         <div class="glow-element"></div>
                     </div>
                 {/each}
             {/each}
             {#if relativeDragCenter !== null}
-                <div class="drag-center" style="left: {relativeDragCenter[0]}px; top: {relativeDragCenter[1]}px;">
+                <div class="drag-center" style="left: {relativeDragCenter.x}px; top: {relativeDragCenter.y}px;">
                     {#if currentDragDirection !== null}
                         <div class="drag-arrow-rotation" style="transform: rotate({180-currentDragDirection*45}deg);">
                             <div class="drag-arrow"><IconChevronCompactUp size="30"/></div>

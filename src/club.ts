@@ -1,4 +1,4 @@
-import {CellType, moveInDirection} from "./course";
+import {CellType} from "./course";
 import {SoundEffect} from "./soundEffect";
 import {type Icon, IconArrowBigRight, IconCone, IconDiamonds, IconPoint} from "@tabler/icons-svelte";
 import {MersenneTwister19937, Random} from "random-js";
