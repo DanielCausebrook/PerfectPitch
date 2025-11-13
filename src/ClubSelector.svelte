@@ -1,5 +1,5 @@
 <script lang="ts">
-    import {type Club, clubs, ClubType} from "./club";
+    import {type Club, clubs, ClubType, SequentialClubStatus} from "./club";
     import Cell from "./Cell.svelte";
     import Dice from "./Dice.svelte";
     import {
@@ -19,14 +19,16 @@
     export let onSelect: ((clubData: Club) => void)|null = null;
     export const advanceLockout = ():void => {
         for (const clubStatus of clubs.keys().map(type => player.clubStatus(type))) {
-            clubStatus.advanceLockout();
+            if (clubStatus instanceof SequentialClubStatus) {
+                clubStatus.advanceLockout();
+            }
         }
         player = player;
     };
     export const rerollAll = () => {
         for (const clubType of clubs.keys()) {
             let status = player.clubStatus(clubType);
-            if (status.lockoutLeft() === 0) {
+            if (status instanceof SequentialClubStatus && status.lockoutLeft() === 0) {
                 rerollClub(clubType);
             }
         }
@@ -39,11 +41,11 @@
     }
 
     function isClubEnabled(club: Club) {
-        return enabled && club.canUseOn(course.cell(player.position)) && player.clubStatus(club.type).current() !== null;
+        return enabled && club.canUseOn(course.cell(player.position)) && player.clubStatus(club.type).isAvailable();
     }
 
     function isClubOutOfShots(clubType: ClubType) {
-        return player.clubStatus(clubType).current() === null;
+        return !player.clubStatus(clubType).isAvailable();
     }
 
     function changeClub(club: Club) {
@@ -54,8 +56,11 @@
     }
 
     function rerollClub(clubType: ClubType) {
-        player.clubStatus(clubType).shuffle();
-        player = player;
+        let clubStatus = player.clubStatus(clubType);
+        if (clubStatus instanceof SequentialClubStatus) {
+            clubStatus.shuffle();
+            player = player;
+        }
         clubSpinners.get(clubType)?.animate([
             {transform: "rotate3d(1, 0, 0, 0deg)", offset: 0, easing: "ease-out"},
             {transform: "rotate3d(1, 0, 0, 360deg)", offset: 1},
@@ -77,10 +82,12 @@
     function wait() {
         player.addStroke();
         for (const clubType of clubs.keys()) {
-            const status = player.clubStatus(clubType)
-            status.advanceLockout();
-            if (status.lockoutLeft() === 0) {
-                rerollClub(clubType);
+            const status = player.clubStatus(clubType);
+            if (status instanceof SequentialClubStatus) {
+                status.advanceLockout();
+                if (status.lockoutLeft() === 0) {
+                    rerollClub(clubType);
+                }
             }
         }
         player = player;
@@ -92,7 +99,7 @@
                 if (
                     event.key === (i+1).toString()
                     && club.canUseOn(course.cell(player.position))
-                    && player.clubStatus(club.type).current() !== null
+                    && player.clubStatus(club.type).isAvailable()
                 ) {
                     clickClub(club);
                     return;
@@ -112,7 +119,6 @@
     {#each clubs.values() as club, i}
         {@const clubEnabled = isClubEnabled(club)}
         {@const clubStatus = player.clubStatus(club.type)}
-        {@const lockoutLeft = clubStatus.lockoutLeft()}
         <div class="club" class:disabled={!clubEnabled} class:selected={club === selectedClub}>
             <span class="selection-marker"><IconChevronCompactRight size="30" /></span>
             <div class="reroll-spinner" use:registerClubSpinner="{club}">
@@ -135,7 +141,7 @@
                     </ul>
                     <div class="dice-faces">
                         {#each clubStatus.faces() as face, i}
-                            {@const faceIndex = clubStatus.currentFaceIndex() ?? i+1}
+                            {@const faceIndex = clubStatus instanceof SequentialClubStatus ? (clubStatus.nextFaceIndex() ?? i+1) : i-1}
                             <div class="dice-face" class:used={i<faceIndex} class:next={i===faceIndex} class:unused={i>faceIndex}>
                                 <div class="dice-wrapper">
                                     <Dice value={face} filled={true} size="35" stroke="1.7" color={face>=club.sliceFrom()?'hsl(20, 60%, 30%)':'hsl(0, 0%, 35%)'} />
@@ -143,9 +149,9 @@
                                 </div>
                             </div>
                         {/each}
-                        {#if lockoutLeft !== null}
+                        {#if clubStatus instanceof SequentialClubStatus && clubStatus.lockoutLeft() !== null}
                             <div class="reroll">
-                                <span>Reroll in {lockoutLeft}</span>
+                                <span>Reroll in {clubStatus.lockoutLeft()}</span>
                             </div>
                         {/if}
                     </div>

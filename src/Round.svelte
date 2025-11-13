@@ -132,17 +132,11 @@
             cellDirectionHighlights = cellDirectionHighlights;
             return;
         }
-        let nextMoveDistance = player.clubStatus(selectedClub.type).current();
-        if (nextMoveDistance === null) {
-            cellDirectionHighlights = cellDirectionHighlights;
-            return;
-        }
         let highlightPos = player.position;
-        for (let i = 0; i <= nextMoveDistance; i++) {
-            let color = i >= selectedClub.sliceFrom() ? 'hsl(20, 60%, 70%)' : 'hsl(0, 0%, 100%)';
+        player.clubStatus(selectedClub.type).shotPreviewHighlights().forEach(color => {
             cellDirectionHighlights.set(`[${highlightPos[0]}, ${highlightPos[1]}]`, color);
             highlightPos = moveInDirection(highlightPos, direction);
-        }
+        });
         cellDirectionHighlights = cellDirectionHighlights;
     }
 
@@ -243,12 +237,12 @@
 
         advanceClubLockout();
         let clubStatus = player.clubStatus(selectedClub.type);
-        let stroke = clubStatus.strokeCurrent();
+        let stroke = clubStatus.next();
         if (stroke === null) {
             throw new Error("Dice roll is null");
         }
         let {distance: movementRemaining, sliceValues: sliceValues} = stroke;
-        if (player.clubStatus(selectedClub.type).current() === null) {
+        if (!player.clubStatus(selectedClub.type).isAvailable()) {
             selectedClub = null;
         }
         player = player;
