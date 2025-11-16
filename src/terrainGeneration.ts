@@ -1,255 +1,159 @@
 import {MersenneTwister19937, Random} from "random-js";
 import {createNoise2D, type NoiseFunction2D} from "simplex-noise";
 import {CellType} from "./course";
-import gaussian from "gaussian";
+import {HexPoint2D, RectDirection, RectPoint2D} from "$lib/maths/point2D";
 import {
-    HexRegion,
-    type Region,
-    type Point,
-    RectDirection,
-    RectRegion,
-    RectPoint,
-    TiledHexRegion,
-    type TiledRegion,
-    TiledRectRegion
-} from "./geometry";
+    HexRegion2D,
+    HexTile,
+    HexTiling2D,
+    RectRegion2D,
+    RectTile,
+    RectTiling2D,
+    type Region2D,
+    type Tile,
+    type Tiling2D
+} from "$lib/maths/tiling2D";
+import {type Function2D, LiteralFunction2D, NumericFunction2D, NumericLiteralFunction2D} from "$lib/maths/function2D";
 
-export class ValMapBuilder {
-    readonly plane: Region;
+export class MapBuilder<T extends Tile> {
+    readonly plane: Region2D<T>;
     #rng: Random;
     #globalScale: number = 1;
 
-    constructor(plane: Region, rng: Random) {
+    constructor(plane: Region2D<T>, rng: Random) {
         this.plane = plane;
         this.#rng = rng;
     }
 
-    fromTiledPlane(tiledPlane: TiledRegion<number>): TerrainMap {
-        if (!this.plane.equals(tiledPlane.bounds)) {
-            throw new Error("Dimensions do not match.");
-        }
-        return new TerrainMap(tiledPlane);
+    nextRng(): Random {
+        return new Random(MersenneTwister19937.seed(this.#rng.uint32()));
     }
 
     setGlobalNoiseScale(scale: number) {
         this.#globalScale = scale;
     }
 
-    buildMap(fn: (p: Point) => number): TerrainMap {
-        return new TerrainMap(this.plane.tilingBuild(fn));
+    buildNoiseMap(scale: number): NumericFunction2D {
+        let noise = new Noise2D(scale*this.#globalScale, this.nextRng());
+        return noise.multiply(0.5, 1);
     }
 
-    buildNoiseMap(scale: number) {
-        let noise = new Noise2D(scale*this.#globalScale, new Random(MersenneTwister19937.seed(this.#rng.uint32())));
-        return this.buildMap(p => 0.5*noise.get(p) + 0.5);
+    buildWarpNoiseMap(scale: number, warpScale: number, warpAmount: number): NumericFunction2D {
+        let inner = new Noise2D(scale*this.#globalScale, this.nextRng());
+        let noise = new NoiseWarp2D(inner, warpScale*this.#globalScale, warpAmount/this.#globalScale, this.nextRng());
+        return noise.asNumeric().multiply(0.5, 1);
     }
 
-    buildWarpNoiseMap(scale: number, warpScale: number, warpAmount: number) {
-        let noise = new WarpNoise2D(scale*this.#globalScale, warpScale*this.#globalScale, warpAmount/this.#globalScale, new Random(MersenneTwister19937.seed(this.#rng.uint32())));
-        return this.buildMap(p => 0.5*noise.get(p) + 0.5);
-    }
-
-    buildLoopyNoiseMap(scale: number, warpAmount: number, warpVarianceScale: number, warpVariance: number, loopScale: number, loopiness: number) {
-        let noise = new LoopyNoise2D(scale*this.#globalScale, warpAmount/this.#globalScale, warpVarianceScale*this.#globalScale, warpVariance/this.#globalScale, loopScale*this.#globalScale, loopiness, new Random(MersenneTwister19937.seed(this.#rng.uint32())));
-        return this.buildMap(p => 0.5*noise.get(p) + 0.5);
-    }
-
-    sum(center: number, ...maps: TerrainMap[]): TerrainMap {
-        return this.buildMap(p => {
-            return maps.reduce((s, m) => s + m.get(p) - center, center);
-        });
-    }
-
-    prod(...maps: TerrainMap[]): TerrainMap {
-        return this.buildMap(p => {
-            return maps.reduce((s, m) => s * m.get(p), 1);
-        });
+    buildLoopyNoiseMap(scale: number, warpAmount: number, warpVarianceScale: number, warpVariance: number, loopScale: number, loopiness: number): NumericFunction2D {
+        let inner = new Noise2D(scale*this.#globalScale, this.nextRng());
+        let noise = new LoopyWarp2D(inner, warpAmount/this.#globalScale, warpVarianceScale*this.#globalScale, warpVariance/this.#globalScale, loopScale*this.#globalScale, loopiness, this.nextRng());
+        return noise.asNumeric().multiply(0.5, 1);
     }
 }
 
-export class TerrainMap {
-    inner: TiledRegion<number>;
 
-    constructor(map: TiledRegion<number>) {
-        this.inner = map;
-    }
-
-    apply(fn: (v: number) => number) {
-        this.inner.mapInPlace(v => fn(v));
-        return this;
-    }
-
-    shift(amount: number) {
-        this.inner.mapInPlace(v => v + amount);
-        return this;
-    }
-
-    scale(factor: number, center?: number) {
-        center = center ?? 0;
-        this.inner.mapInPlace(v => center + (v-center) * factor);
-        return this;
-    }
-
-    pinch(amount: number, center?: number, range?: number) {
-        center = center ?? 0;
-        range = range ?? 1;
-        let exponent = Math.pow(Math.E, -amount);
-        this.inner.mapInPlace(v => {
-            let adjusted = v - center;
-            let sign = Math.sign(adjusted);
-            return center + sign*Math.pow(sign*adjusted/range, exponent)*range;
-        })
-        return this;
-    }
-
-    blur(sigma: number) {
-        if (this.inner instanceof TiledRectRegion) {
-            this.inner = rectGaussianBlur(this.inner, sigma);
-        } else if (this.inner instanceof TiledHexRegion) {
-            this.inner = hexGaussianBlur(this.inner, sigma);
-        } else {
-            throw new Error("Unsupported TiledPlane for blur().");
-        }
-        return this;
-    }
-
-    invert() {
-        this.inner.mapInPlace(v => 1-v);
-        return this;
-    }
-
-    clamp(low?: number, high?: number) {
-        low = low??0;
-        high = high??1;
-        this.inner.mapInPlace(v => Math.min(high, Math.max(low, v)));
-        return this;
-    }
-
-    copy() {
-        return new TerrainMap(this.inner.copy());
-    }
-
-    get(point: Point) {
-        return this.inner.get(point);
-    }
-
-    threshold(value:number) {
-        this.inner.mapInPlace(v => v >= value ? 1 : 0);
-        return this;
-    }
-
-    boolThreshold(value: number): TiledRegion<boolean> {
-        return this.inner.map(v => v >= value);
-    }
-}
-
-export class Noise2D {
+export class Noise2D extends NumericLiteralFunction2D {
     #noise: NoiseFunction2D;
     #scale: number;
     #offsetX: number;
     #offsetY: number;
 
     constructor(scale: number, rng: Random) {
+        super(p => {
+            const pR = p.toRect();
+            return this.#noise(pR.x/this.#scale + this.#offsetX, pR.y/this.#scale + this.#offsetY);
+        })
         this.#noise = createNoise2D(() => rng.real(0, 1));
         this.#scale = scale;
         this.#offsetX = rng.real(0, 1);
         this.#offsetY = rng.real(0, 1);
     }
-
-    get(point: Point) {
-        const p = point.toRect();
-        return this.#noise(p.x/this.#scale + this.#offsetX, p.y/this.#scale + this.#offsetY);
-    }
 }
 
-export class WarpNoise2D {
-    #noise: Noise2D;
+export class NoiseWarp2D<T> extends LiteralFunction2D<T> {
+    #inner: Function2D<T>;
     #warpX: Noise2D;
     #warpY: Noise2D;
     #warpAmount: number;
 
-
-    constructor(scale: number, warpScale: number, warpAmount: number, rng: Random) {
-        this.#warpAmount = warpAmount;
-        this.#noise = new Noise2D(scale, rng);
-        this.#warpX = new Noise2D(warpScale, rng);
-        this.#warpY = new Noise2D(warpScale, rng);
-    }
-
-    get(point: Point) {
-        const warp = new RectPoint(
-            this.#warpAmount*this.#warpX.get(point),
-            this.#warpAmount*this.#warpY.get(point),
-        );
-        return this.#noise.get(point.add(warp));
+    constructor(inner: Function2D<T>, scale: number, amount: number, rng: Random) {
+        super(p => {
+            const warp = new RectPoint2D(
+                this.#warpAmount*this.#warpX.get(p),
+                this.#warpAmount*this.#warpY.get(p),
+            );
+            return this.#inner.get(p.add(warp));
+        });
+        this.#warpAmount = amount;
+        this.#inner = inner;
+        this.#warpX = new Noise2D(scale, rng);
+        this.#warpY = new Noise2D(scale, rng);
     }
 }
 
-
-export class LoopyNoise2D {
-    #noise: Noise2D;
+export class LoopyWarp2D<T> extends LiteralFunction2D<T> {
+    #inner: Function2D<T>;
     #warpAngle: Noise2D;
     #warpVariance: Noise2D;
     #warpVarianceAmount: number;
     #warpAmount: number;
     #angleAmount: number;
 
+    constructor(inner: Function2D<T>, amount: number, varianceScale: number, variance: number, loopScale: number, loopiness: number, rng: Random) {
+        super(p => {
+            const tau = 2*Math.PI;
+            let angle = this.#angleAmount * this.#warpAngle.get(p) * tau; // Radians
+            angle = ((angle % tau) + tau) % tau;
+            let magnitude = this.#warpAmount + this.#warpVarianceAmount * this.#warpVariance.get(p);
+            let warp: RectPoint2D;
+            if (angle < 0.25*tau) {
+                warp = new RectPoint2D(
+                    magnitude*Math.cos(angle),
+                    magnitude*Math.sin(angle),
+                );
+            } else if (angle < 0.5*tau) {
+                warp = new RectPoint2D(
+                    -magnitude*Math.sin(angle-0.25*tau),
+                    magnitude*Math.cos(angle-0.25*tau),
+                );
+            } else if (angle < 0.75*tau) {
+                warp = new RectPoint2D(
+                    -magnitude*Math.cos(angle-0.5*tau),
+                    -magnitude*Math.sin(angle-0.5*tau),
+                );
+            } else {
+                warp = new RectPoint2D(
+                    magnitude*Math.sin(angle-0.75*tau),
+                    -magnitude*Math.cos(angle-0.75*tau),
+                );
+            }
+            Math.tan(angle);
+            return this.#inner.get(p.add(warp));
 
-    constructor(scale: number, warpAmount: number, warpVarianceScale: number, warpVariance: number, loopScale: number, loopiness: number, rng: Random) {
-        this.#warpAmount = warpAmount;
-        this.#noise = new Noise2D(scale, rng);
+        });
+        this.#inner = inner;
+        this.#warpAmount = amount;
         this.#warpAngle = new Noise2D(loopScale, rng);
-        this.#warpVariance = new Noise2D(warpVarianceScale, rng);
-        this.#warpVarianceAmount = warpVariance;
+        this.#warpVariance = new Noise2D(varianceScale, rng);
+        this.#warpVarianceAmount = variance;
         this.#angleAmount = loopiness*loopScale;
-    }
-
-    get(point: Point) {
-        const tau = 2*Math.PI;
-        let angle = this.#angleAmount * this.#warpAngle.get(point) * tau; // Radians
-        angle = ((angle % tau) + tau) % tau;
-        let magnitude = this.#warpAmount + this.#warpVarianceAmount * this.#warpVariance.get(point);
-        let warp: RectPoint;
-        if (angle < 0.25*tau) {
-            warp = new RectPoint(
-                magnitude*Math.cos(angle),
-                magnitude*Math.sin(angle),
-            );
-        } else if (angle < 0.5*tau) {
-            warp = new RectPoint(
-                -magnitude*Math.sin(angle-0.25*tau),
-                magnitude*Math.cos(angle-0.25*tau),
-            );
-        } else if (angle < 0.75*tau) {
-            warp = new RectPoint(
-                -magnitude*Math.cos(angle-0.5*tau),
-                -magnitude*Math.sin(angle-0.5*tau),
-            );
-        } else {
-            warp = new RectPoint(
-                magnitude*Math.sin(angle-0.75*tau),
-                -magnitude*Math.cos(angle-0.75*tau),
-            );
-        }
-        Math.tan(angle);
-        return this.#noise.get(point.add(warp));
     }
 }
 
-export function loopErasedRandomWalk(walls: TiledRectRegion<boolean>, start: RectPoint, end: RectPoint, rng: Random): RectPoint[] {
+export function loopErasedRandomWalk(walls: RectTiling2D<boolean>, start: RectPoint2D, end: RectPoint2D, rng: Random): RectPoint2D[] {
     let markDelay = 1;
-    function positionHash(pos: RectPoint) { return pos.x + ',' + pos.y; }
+    function positionHash(pos: RectPoint2D) { return pos.x + ',' + pos.y; }
     let startHash = positionHash(start);
-    let path: {position: RectPoint, markedRegion: string[]}[] = [{position: start, markedRegion: [startHash]}];
+    let path: {position: RectPoint2D, markedRegion: string[]}[] = [{position: start, markedRegion: [startHash]}];
     let markedCells: Set<string> = new Set([startHash]);
-    let currentPosition: RectPoint = start;
+    let currentPosition: RectPoint2D = start;
     function pathPop() {
-        const removed = path.pop() as {position: RectPoint; markedRegion: string[]};
+        const removed = path.pop() as {position: RectPoint2D; markedRegion: string[]};
         for (const markedHash of removed.markedRegion) {
             markedCells.delete(markedHash);
         }
     }
-    function isOutOfBounds(p: RectPoint): boolean {
+    function isOutOfBounds(p: RectPoint2D): boolean {
         return !walls.bounds.contains(p)
             || ((p.x === 0 || p.x === walls.bounds.width - 1) && (p.y === 0 || p.y === walls.bounds.height - 1)) // Disallow corners because it can get stuck in corners.
             || walls.get(p);
@@ -301,7 +205,7 @@ export function loopErasedRandomWalk(walls: TiledRectRegion<boolean>, start: Rec
             if (delayedStep !== undefined) {
                 for (let y = -1; y < 2; y++) {
                     for (let x = -1; x < 2; x++) {
-                        let cellToMark: RectPoint = delayedStep.position.add(new RectPoint(x, y));
+                        let cellToMark: RectPoint2D = delayedStep.position.add(new RectPoint2D(x, y));
                         if (cellToMark.equals(end)) {
                             for (let i = 0; i < markDelay; i++) {
                                 pathPop();
@@ -327,72 +231,7 @@ export function loopErasedRandomWalk(walls: TiledRectRegion<boolean>, start: Rec
     }
 }
 
-export function rectGaussianBlur(matrix: TiledRectRegion<number>, sigma: number): TiledRectRegion<number> {
-    if (sigma === 0) return matrix.copy();
-    const distribution = gaussian(0, sigma);
-    let gaussianValues = [distribution.cdf(0.5)-distribution.cdf(-0.5)];
-    let energyCovered = gaussianValues[0];
-    let valuesWidth = 0;
-    while (energyCovered < 0.9) {
-        let nextValue = distribution.cdf(valuesWidth+1.5) - distribution.cdf(valuesWidth+0.5);
-        gaussianValues.push(nextValue);
-        gaussianValues.unshift(nextValue);
-        energyCovered += 2*nextValue;
-        valuesWidth++;
-    }
-
-    function blurRowsIntoInverted(width: number, height: number, input: number[][]): number[][] {
-        let result = Array(height).fill(null).map(() => Array(width).fill(0));
-        input.forEach((col, x) => {
-            for (let y = 0; y < col.length; y++) {
-                let val = 0;
-                let max = 0;
-                for (let i = -valuesWidth; i <= valuesWidth; i++) {
-                    max += (col[y + i] !== undefined) ? gaussianValues[i+ valuesWidth] : 0;
-                    val += (col[y + i] ?? 0) * gaussianValues[i+valuesWidth];
-                }
-                result[y][x] = max === 0 ? 0 : val / max;
-            }
-        });
-        return result;
-    }
-    let xBlurredInverted: number[][] = blurRowsIntoInverted(matrix.bounds.width, matrix.bounds.height, matrix.data);
-    let blurred: number[][] = blurRowsIntoInverted(matrix.bounds.height, matrix.bounds.width, xBlurredInverted);
-    return new TiledRectRegion(matrix.bounds, blurred);
-}
-
-function hexGaussianBlur(tiling: TiledHexRegion<number>, sigma: number): TiledHexRegion<number> {
-    const maxDist = 3*sigma;
-    const minL = Math.ceil(-maxDist);
-    const maxL = Math.ceil(maxDist);
-    const plane = new HexRegion(minL, maxL, minL, maxL, minL, maxL);
-    const distribution = gaussian(0, sigma);
-    let kernel = plane.tilingBuild(p => {
-        let dist = p.magnitude();
-        return distribution.cdf(dist + 0.5) - distribution.cdf(dist - 0.5);
-    });
-
-    let result = tiling.bounds.tilingOf(0);
-    tiling.forEach((value, p) => {
-        if (value == 0) {
-            return;
-        }
-        const localKernel = kernel.map((kValue, kP) => tiling.bounds.contains(p.add(kP)) ? kValue : 0);
-        let kernelSum = 0;
-        localKernel.forEach(kValue => kernelSum += kValue);
-        localKernel.forEach((kValue, kP) => {
-            if (kValue == 0) {
-                return;
-            }
-            const target = p.add(kP);
-            result.set(target, result.get(target) + value*kValue/kernelSum);
-        })
-    });
-
-    return result;
-}
-
-export function generateTeeAndHolePos(width: number, height: number, xEdge: number, yEdge: number, rng: Random): [RectPoint, RectPoint] {
+export function generateTeeAndHolePos(width: number, height: number, xEdge: number, yEdge: number, rng: Random): [RectPoint2D, RectPoint2D] {
     const positionLimit = 0.4;
 
     const positionRng = new Random(MersenneTwister19937.seed(rng.uint32()));
@@ -403,18 +242,18 @@ export function generateTeeAndHolePos(width: number, height: number, xEdge: numb
         }
         return [posLong, positionRng.integer(shortEdge, shortSide - 2*shortEdge - 1)]
     }
-    let holePos: RectPoint, teePos: RectPoint;
+    let holePos: RectPoint2D, teePos: RectPoint2D;
     let teeAtTop = positionRng.pick([-1, 1]);
     if (width > height) {
         let [x, y] = generatePosition(width, height, xEdge, yEdge, -teeAtTop*positionLimit);
-        teePos = new RectPoint(x, y);
+        teePos = new RectPoint2D(x, y);
         [x, y] = generatePosition(width, height, xEdge, yEdge, teeAtTop*positionLimit);
-        holePos = new RectPoint(x, y);
+        holePos = new RectPoint2D(x, y);
     } else {
         let [y, x] = generatePosition(height, width, yEdge, xEdge, -teeAtTop*positionLimit);
-        teePos = new RectPoint(x, y);
+        teePos = new RectPoint2D(x, y);
         [y, x] = generatePosition(height, width, yEdge, xEdge, teeAtTop*positionLimit);
-        holePos = new RectPoint(x, y);
+        holePos = new RectPoint2D(x, y);
     }
 
     return [teePos, holePos];
@@ -488,6 +327,7 @@ export class TerrainDebugSettings {
 
 export function createTerrainDebugSettings() {
     return new TerrainDebugSettings()
+        .addSetting(new TerrainDebugBool('hex', 'Hex?', false))
         .addSetting(new TerrainDebugRadioGroup('map', 'Map', 'result', 'Result')
             .addOption('edge', "Edge")
             .addOption('walls', "Walls")
@@ -514,21 +354,23 @@ export function createTerrainDebugSettings() {
     ;
 }
 
-export class DebugMap {
-    map: TiledRegion<number|boolean>;
+export class DebugMap<T extends Tile> {
+    map: Tiling2D<T, number | boolean>;
 
-    constructor(map: TiledRegion<number|boolean>) {
+    constructor(map: Tiling2D<T, number | boolean>) {
         this.map = map;
     }
 }
 
-export function generateTerrainDebug(width: number, height: number, xEdge: number, yEdge: number, teePos: RectPoint, holePos: RectPoint, rng: Random, debug?: TerrainDebugSettings): TiledRectRegion<CellType> | DebugMap {
-    const plane = new RectRegion(width, height);
-    let mB = new ValMapBuilder(plane, rng);
+export function generateTerrainDebug(width: number, height: number, xEdge: number, yEdge: number, teePos: RectPoint2D, holePos: RectPoint2D, rng: Random, debug?: TerrainDebugSettings): RectTiling2D<CellType> | DebugMap<RectTile> {
+    const region = new RectRegion2D(width, height);
+    let mB = new MapBuilder(region, rng);
 
-    if (debug?.is('map', 'noise')) return new DebugMap(mB.buildLoopyNoiseMap(10, 5, 20, 2, 45, 0.03).inner);
+    if (debug?.is('map', 'noise')) return new DebugMap(region.tile(
+        mB.buildLoopyNoiseMap(10, 5, 20, 2, 45, 0.03)
+    ));
 
-    let edgeProximityMap = mB.buildMap(p => {
+    let edgeProximityMapOld = region.tile(p => {
         const rectPoint = p.toRect();
         const x = rectPoint.x;
         const y = rectPoint.y;
@@ -546,14 +388,29 @@ export function generateTerrainDebug(width: number, height: number, xEdge: numbe
             edgeProximity *= Math.pow((height - 1 - (y-1.5))/(yEdge+3.5), 0.85);
         }
         return edgeProximity;
-    });
-    if (debug?.is('map', 'edge')) return new DebugMap(edgeProximityMap.inner);
+    }).asNumeric();
+    const w = 3;
+    let edgeProximityFn = new NumericLiteralFunction2D(p => {
+        let pR = p.toRect();
+        let x = Math.max(
+            -w,
+            pR.x - region.width + 1,
+            - pR.x,
+        ) + w;
+        let y = Math.max(
+            -w,
+            pR.y - region.height + 1,
+            - pR.y,
+        ) + w;
+        return x + y;
+    }).multiply(0.2);
+    if (debug?.is('map', 'edge')) return new DebugMap(debug?.get('m') ? edgeProximityMapOld.invert() : region.tile(edgeProximityFn));
 
 
-    let center: RectPoint = new RectPoint(Math.round((teePos.x + holePos.x)/2), Math.round((teePos.y + holePos.y)/2));
+    let center: RectPoint2D = new RectPoint2D(Math.round((teePos.x + holePos.x)/2), Math.round((teePos.y + holePos.y)/2));
     let distance = teePos.sub(holePos).magnitude();
     let radius = Math.min(Math.min(width-2*xEdge, height-2*yEdge) / 6, distance/2-1.5);
-    let walls = plane.tilingBuild(p => {
+    let walls = region.tile(p => {
         const x = p.x;
         const y = p.y;
         if (Math.abs(center.x-x) <= radius && Math.abs(center.y-y) <= radius
@@ -569,103 +426,103 @@ export function generateTerrainDebug(width: number, height: number, xEdge: numbe
 
     let path = loopErasedRandomWalk(walls, teePos, holePos, new Random(MersenneTwister19937.seed(rng.uint32())));
 
-    let rawPathMap = plane.tilingOf(0);
+    let pathMap = region.tilingOf(0).asNumeric();
     for (const pos of path) {
-        rawPathMap.set(pos, 1);
+        pathMap.set(pos, 1);
     }
-    let pathMap = mB.fromTiledPlane(rawPathMap.copy());
 
-    let endsTiling = plane.tilingOf(0);
+    let endsMap = region.tilingOf(0).asNumeric();
     for (const offset of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-        if (endsTiling.data[holePos.x+offset[0]][holePos.y+offset[1]] !== undefined)
-            endsTiling.data[holePos.x+offset[0]][holePos.y+offset[1]] = 0.65;
+        if (endsMap.data[holePos.x+offset[0]][holePos.y+offset[1]] !== undefined)
+            endsMap.data[holePos.x+offset[0]][holePos.y+offset[1]] = 0.65;
     }
     for (const offset of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-        if (endsTiling.data[teePos.x+offset[0]][teePos.y+offset[1]] === 0)
-            endsTiling.data[teePos.x+offset[0]][teePos.y+offset[1]] = 0.45;
+        if (endsMap.data[teePos.x+offset[0]][teePos.y+offset[1]] === 0)
+            endsMap.data[teePos.x+offset[0]][teePos.y+offset[1]] = 0.45;
     }
     let endWeights = [1.5, 1, 0.85, 0.7, 0.5, 0.3];
     endWeights.forEach((weight, i) => {
         let stepFromStart = path[i];
         if (stepFromStart !== undefined) {
-            endsTiling.data[stepFromStart.x][stepFromStart.y] += weight;
+            endsMap.data[stepFromStart.x][stepFromStart.y] += weight;
         }
         let stepFromEnd = path[path.length - 1 - i];
         if (stepFromEnd !== undefined) {
-            endsTiling.data[stepFromEnd.x][stepFromEnd.y] += weight;
+            endsMap.data[stepFromEnd.x][stepFromEnd.y] += weight;
         }
     })
-    let endsMap = mB.fromTiledPlane(endsTiling);
 
-    pathMap.blur(1.7).scale(3).clamp();
-    endsMap.blur(1.7).scale(4.5).clamp();
+    pathMap.blur(1.7).multiply(3).clamp();
+    endsMap.blur(1.7).multiply(4.5).clamp();
 
-    if (debug?.is('map', 'path')) return new DebugMap(!debug?.get('m') ? pathMap.inner: rawPathMap);
-    if (debug?.is('map', 'pathEnds')) return new DebugMap(endsMap.inner);
+    if (debug?.is('map', 'path')) return new DebugMap(!debug?.get('m') ? pathMap: pathMap);
+    if (debug?.is('map', 'pathEnds')) return new DebugMap(endsMap);
 
-    let landMap = mB.prod(
-        mB.prod(
-            mB.buildWarpNoiseMap(7, 8, 2.5),
-            edgeProximityMap.copy().pinch(0.2, 1),
-        ).invert(),
+    let landMap = region.product(
+        region.tile(
+            NumericFunction2D.product(
+                mB.buildWarpNoiseMap(7, 8, 2.5),
+                edgeProximityFn.invert().pinch(0.2, 1),
+            ).invert()
+        ),
         endsMap.copy().invert(),
-        pathMap.copy().scale(0.08).invert()
+        pathMap.copy().multiply(0.08).invert()
     ).invert().pinch(-0.5, 1);
-    if (debug?.is('map', 'l')) return new DebugMap(landMap.inner);
+    if (debug?.is('map', 'l')) return new DebugMap(landMap);
 
     let waterMap = landMap.copy().invert().threshold(0.5).blur(0.35).boolThreshold(0.5);
     if (debug?.is('map', 'w')) return new DebugMap(waterMap);
 
-    let fairwayMapV = mB.prod(
-        mB.prod(
-            mB.sum(0.5,
+    let fairwayMapV = region.product(
+        region.product(
+            region.tile(NumericFunction2D.offsetSum(0.5,
                 mB.buildWarpNoiseMap(10, 8, 3)
-            ),
-            landMap.copy().scale(0.85).shift(0.125).clamp()
+            )),
+            landMap.copy().multiply(0.85).add(0.125).clamp()
         ).invert(),
-        endsMap.copy().scale(3.5, 1).clamp().invert()
+        endsMap.copy().multiply(3.5, 1).clamp().invert()
     ).invert();
-    if (debug?.is('map', 'f')) return new DebugMap(fairwayMapV.inner);
+    if (debug?.is('map', 'f')) return new DebugMap(fairwayMapV);
     let fairwayMap = fairwayMapV.boolThreshold(0.5);
 
-    let rockMapV = mB.prod(
-        mB.sum(0.5,
-            mB.buildNoiseMap(25).scale(0, 0.5),
+    let rockMapV = region.product(
+        region.tile(NumericFunction2D.offsetSum(0.5,
+            mB.buildNoiseMap(25).multiply(0, 0.5),
             mB.buildWarpNoiseMap(12, 12, 6),
-        ),
-        landMap.copy().shift(0.25).clamp(),
-        pathMap.copy().pinch(-0.2, 1, 0.2).clamp().scale(0.8).invert(),
-        endsMap.copy().scale(2, 1).clamp().invert()
+        )),
+        landMap.copy().add(0.25).clamp(),
+        pathMap.copy().pinch(-0.2, 1, 0.2).clamp().multiply(0.8).invert(),
+        endsMap.copy().multiply(2, 1).clamp().invert()
     );
-    if (debug?.is('map', 'r')) return new DebugMap(!debug?.get('m') ? rockMapV.inner : landMap.copy().shift(0.25).clamp().inner);
-    let rockMap = rockMapV.threshold(0.665).blur(0.5).boolThreshold(0.4);
+    if (debug?.is('map', 'r')) return new DebugMap(!debug?.get('m') ? rockMapV : landMap.copy().add(0.25).clamp());
+    let rockMap = rockMapV.copy().threshold(0.665).blur(0.5).boolThreshold(0.4);
 
-    let sandMapV = mB.prod(
-        mB.sum(0.5,
-            mB.buildNoiseMap(10).scale(0.15, 0.5),
-            mB.buildWarpNoiseMap(4.5, 8, 4).scale(1, 0.5),
-        ),
-        landMap.copy().invert().scale(4).shift(0.25).clamp(),
-        pathMap.copy().pinch(0.5, 1).clamp().scale(0.5).invert(),
+    let sandMapV = region.product(
+        region.tile(NumericFunction2D.offsetSum(0.5,
+            mB.buildNoiseMap(10).multiply(0.15, 0.5),
+            mB.buildWarpNoiseMap(4.5, 8, 4).multiply(1, 0.5),
+        )),
+        landMap.copy().invert().multiply(4).add(0.25).clamp(),
+        pathMap.copy().pinch(0.5, 1).clamp().multiply(0.5).invert(),
     ).threshold(0.58).blur(2);
-    if (debug?.is('map', 's')) return new DebugMap(!debug?.get('m')?sandMapV.inner:pathMap.copy().pinch(0.5, 1).clamp().scale(0.5).invert().inner);
+    if (debug?.is('map', 's')) return new DebugMap(!debug?.get('m')?sandMapV:pathMap.copy().pinch(0.5, 1).clamp().multiply(0.5).invert());
     let sandMap = sandMapV.boolThreshold(0.4);
 
-    let treeMapV = mB.prod(
-        mB.sum(0.5,
-            mB.buildWarpNoiseMap(10, 15, 2.5).scale(0.15, 0.5),
-            mB.buildWarpNoiseMap(7, 10, 2).scale(0.5, 0.5),
-            mB.buildWarpNoiseMap(3, 8, 2).scale(1, 0.5)
-        ),
-        landMap.copy().scale(1.5).shift(0.225).clamp(),
-        endsMap.copy().scale(2, 1).clamp().invert(),
-        fairwayMapV.copy().scale(3, 1).clamp().invert(),
-        sandMapV.copy().scale(1.5, 1).clamp().invert(),
+    let treeMapV = region.product(
+        region.tile(NumericFunction2D.offsetSum(0.5,
+            mB.buildWarpNoiseMap(10, 15, 2.5).multiply(0.15, 0.5),
+            mB.buildWarpNoiseMap(7, 10, 2).multiply(0.5, 0.5),
+            mB.buildWarpNoiseMap(3, 8, 2).multiply(1, 0.5)
+        )),
+        landMap.copy().multiply(1.5).add(0.225).clamp(),
+        endsMap.copy().multiply(2, 1).clamp().invert(),
+        fairwayMapV.copy().multiply(3, 1).clamp().invert(),
+        sandMapV.copy().multiply(1.5, 1).clamp().invert(),
     );
-    if (debug?.is('map', 't')) return new DebugMap(treeMapV.inner);
+    if (debug?.is('map', 't')) return new DebugMap(treeMapV);
     let treeMap = treeMapV.boolThreshold(0.65);
 
-    return plane.tilingBuild(p => {
+    return region.tile(p => {
         if (p.equals(holePos)) {
             return CellType.Hole;
         }
@@ -685,8 +542,173 @@ export function generateTerrainDebug(width: number, height: number, xEdge: numbe
         }
     });
 }
+export function generateHexTerrainDebug(size: number, xEdge: number, yEdge: number, teePos: HexPoint2D, holePos: HexPoint2D, rng: Random, debug?: TerrainDebugSettings): HexTiling2D<CellType> | DebugMap<HexTile> {
+    const region = new HexRegion2D(-size + 1, size, -size + 1, size, -size + 1, size);
+    let mB = new MapBuilder(region, rng);
 
-export function generateTerrain(width: number, height: number, xEdge: number, yEdge: number, teePos: RectPoint, holePos: RectPoint, rng: Random): TiledRectRegion<CellType> {
+    if (debug?.is('map', 'noise')) return new DebugMap(region.tile(
+        mB.buildLoopyNoiseMap(10, 5, 20, 2, 45, 0.03)
+    ));
+
+
+    const w = 3;
+    let edgeProximityFn = new NumericLiteralFunction2D(p => {
+        let pH = p.toHex();
+        let q = Math.max(-w,
+            pH.q - region.qMax + 1,
+            region.qMin - pH.q,
+        ) + w;
+        let r = Math.max(-w,
+            pH.r - region.rMax + 1,
+            region.rMin - pH.r,
+        ) + w;
+        let s = Math.max(-w,
+            pH.s - region.sMax + 1,
+            region.sMin - pH.s,
+        ) + w;
+        return q + r + s;
+    }).multiply(0.2);
+    if (debug?.is('map', 'edge')) return new DebugMap(region.tile(edgeProximityFn));
+
+    // let center: RectPoint = new RectPoint(Math.round((teePos.x + holePos.x)/2), Math.round((teePos.y + holePos.y)/2));
+    // let distance = teePos.sub(holePos).magnitude();
+    // let radius = Math.min(Math.min(width-2*xEdge, height-2*yEdge) / 6, distance/2-1.5);
+    // let walls = plane.tilingBuild(p => {
+    //     const x = p.x;
+    //     const y = p.y;
+    //     if (Math.abs(center.x-x) <= radius && Math.abs(center.y-y) <= radius
+    //         && center.sub(p).magnitude() < radius) {
+    //         return true;
+    //     }
+    //     if (x < xEdge || x >= width - xEdge || y < yEdge || y >= height - yEdge) {
+    //         return true;
+    //     }
+    //     return false;
+    // });
+    // if (debug?.is('map', 'walls')) return new DebugMap(walls);
+
+    // let path = loopErasedRandomWalk(walls, teePos, holePos, new Random(MersenneTwister19937.seed(rng.uint32())));
+
+    // let rawPathMap = plane.tilingOf(0);
+    // for (const pos of path) {
+    //     rawPathMap.set(pos, 1);
+    // }
+    // let pathMap = mB.fromTiledPlane(rawPathMap.copy());
+
+    // let endsTiling = plane.tilingOf(0);
+    // for (const offset of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+    //     if (endsTiling.data[holePos.x+offset[0]][holePos.y+offset[1]] !== undefined)
+    //         endsTiling.data[holePos.x+offset[0]][holePos.y+offset[1]] = 0.65;
+    // }
+    // for (const offset of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+    //     if (endsTiling.data[teePos.x+offset[0]][teePos.y+offset[1]] === 0)
+    //         endsTiling.data[teePos.x+offset[0]][teePos.y+offset[1]] = 0.45;
+    // }
+    // let endWeights = [1.5, 1, 0.85, 0.7, 0.5, 0.3];
+    // endWeights.forEach((weight, i) => {
+    //     let stepFromStart = path[i];
+    //     if (stepFromStart !== undefined) {
+    //         endsTiling.data[stepFromStart.x][stepFromStart.y] += weight;
+    //     }
+    //     let stepFromEnd = path[path.length - 1 - i];
+    //     if (stepFromEnd !== undefined) {
+    //         endsTiling.data[stepFromEnd.x][stepFromEnd.y] += weight;
+    //     }
+    // })
+    // let endsMap = mB.fromTiledPlane(endsTiling);
+
+    // pathMap.blur(1.7).scale(3).clamp();
+    // endsMap.blur(1.7).scale(4.5).clamp();
+
+    // if (debug?.is('map', 'path')) return new DebugMap(!debug?.get('m') ? pathMap.inner: rawPathMap);
+    // if (debug?.is('map', 'pathEnds')) return new DebugMap(endsMap.inner);
+
+    let landMap = region.tile(
+        NumericFunction2D.product(
+            NumericFunction2D.product(
+                mB.buildWarpNoiseMap(7, 8, 2.5),
+                edgeProximityFn.invert().pinch(0.2, 1),
+            ).invert(),
+            // endsMap.copy().invert(),
+            // pathMap.copy().scale(0.08).invert()
+        ).invert().pinch(-0.5, 1)
+    ).asNumeric();
+    if (debug?.is('map', 'l')) return new DebugMap(landMap);
+
+    let waterMap = landMap.copy().invert().threshold(0.5).blur(0.35).boolThreshold(0.5);
+    if (debug?.is('map', 'w')) return new DebugMap(waterMap);
+
+    let fairwayValMap = region.product(
+        region.product(
+            region.tile(NumericFunction2D.offsetSum(0.5,
+                mB.buildWarpNoiseMap(10, 8, 3)
+            )),
+            landMap.copy().multiply(0.85).add(0.125).clamp()
+        ).invert(),
+        // endsMap.copy().scale(3.5, 1).clamp().invert()
+    ).invert();
+    if (debug?.is('map', 'f')) return new DebugMap(fairwayValMap);
+    let fairwayFn = fairwayValMap.boolThreshold(0.5);
+
+    let rockValMap = region.product(
+        region.tile(NumericFunction2D.offsetSum(0.5,
+            mB.buildNoiseMap(25).multiply(0, 0.5),
+            mB.buildWarpNoiseMap(12, 12, 6),
+        )),
+        landMap.copy().add(0.25).clamp(),
+        // pathMap.copy().pinch(-0.2, 1, 0.2).clamp().scale(0.8).invert(),
+        // endsMap.copy().scale(2, 1).clamp().invert()
+    );
+    if (debug?.is('map', 'r')) return new DebugMap(!debug?.get('m') ? rockValMap : landMap.copy().add(0.25).clamp());
+    let rockMap = rockValMap.copy().threshold(0.665).blur(0.5).boolThreshold(0.4);
+
+    let sandValMap = region.product(
+        region.tile(NumericFunction2D.offsetSum(0.5,
+            mB.buildNoiseMap(10).multiply(0.15, 0.5),
+            mB.buildWarpNoiseMap(4.5, 8, 4).multiply(1, 0.5),
+        )),
+        landMap.copy().invert().multiply(4).add(0.25).clamp(),
+        // pathMap.copy().pinch(0.5, 1).clamp().scale(0.5).invert(),
+    ).threshold(0.58).blur(2);
+    // if (debug?.is('map', 's')) return new DebugMap(!debug?.get('m')?sandMapV.inner:pathMap.copy().pinch(0.5, 1).clamp().scale(0.5).invert().inner);
+    let sandMap = sandValMap.boolThreshold(0.4);
+
+    let treeValFn = region.product(
+        region.tile(NumericFunction2D.offsetSum(0.5,
+            mB.buildWarpNoiseMap(10, 15, 2.5).multiply(0.15, 0.5),
+            mB.buildWarpNoiseMap(7, 10, 2).multiply(0.5, 0.5),
+            mB.buildWarpNoiseMap(3, 8, 2).multiply(1, 0.5)
+        )),
+        landMap.copy().multiply(1.5).add(0.225).clamp(),
+        // endsMap.copy().scale(2, 1).clamp().invert(),
+        fairwayValMap.copy().multiply(3, 1).clamp().invert(),
+        sandValMap.copy().multiply(1.5, 1).clamp().invert(),
+    );
+    if (debug?.is('map', 't')) return new DebugMap(treeValFn);
+    let treeMap = treeValFn.boolThreshold(0.65);
+
+    return region.tile(p => {
+        if (p.equals(holePos)) {
+            return CellType.Hole;
+        }
+        switch (true) {
+            case waterMap.get(p):
+                return CellType.Water;
+            case rockMap.get(p):
+                return CellType.Rock;
+            case treeMap.get(p):
+                return CellType.Tree;
+            case sandMap.get(p):
+                return CellType.Sand;
+            case fairwayFn.get(p):
+                return CellType.Fairway;
+            default:
+                return CellType.Rough;
+        }
+    });
+}
+
+export function generateTerrain(width: number, height: number, xEdge: number, yEdge: number, teePos: RectPoint2D, holePos: RectPoint2D, rng: Random): RectTiling2D<CellType> {
     let maybeTerrain = generateTerrainDebug(width, height, xEdge, yEdge, teePos, holePos, rng);
     if (maybeTerrain instanceof DebugMap) {
         throw new Error("Terrain Generation returned debug map without any debug settings being supplied.");

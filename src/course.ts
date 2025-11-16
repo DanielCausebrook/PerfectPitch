@@ -1,7 +1,8 @@
 import {MersenneTwister19937, Random} from "random-js";
 import {SoundEffect} from "./soundEffect";
 import {generateTeeAndHolePos, generateTerrain} from "./terrainGeneration";
-import {RectPoint, TiledRectRegion, RectRegion} from "./geometry";
+import {RectPoint2D} from "$lib/maths/point2D";
+import {RectRegion2D, type RectTiling2D} from "$lib/maths/tiling2D";
 
 export enum CellType {
     Hole,
@@ -63,11 +64,11 @@ export class CellData {
 }
 
 export class Course {
-    #layout: TiledRectRegion<CellType>;
-    #holePos: RectPoint;
-    #teePos: RectPoint;
+    #layout: RectTiling2D<CellType>;
+    #holePos: RectPoint2D;
+    #teePos: RectPoint2D;
 
-    constructor(layout: TiledRectRegion<CellType>, holePos: RectPoint, teePos: RectPoint) {
+    constructor(layout: RectTiling2D<CellType>, holePos: RectPoint2D, teePos: RectPoint2D) {
         this.#layout = layout;
         this.#holePos = holePos;
         this.#teePos = teePos;
@@ -80,7 +81,7 @@ export class Course {
         return new Course(map, holePos, teePos);
     }
 
-    bounds(): RectRegion {
+    bounds(): RectRegion2D {
         return this.#layout.bounds;
     }
 
@@ -92,15 +93,15 @@ export class Course {
         return this.#layout.bounds.width;
     }
 
-    cell(position: RectPoint): CellType {
+    cell(position: RectPoint2D): CellType {
         return this.#layout.get(position);
     }
 
-    tee(): RectPoint {
+    tee(): RectPoint2D {
         return this.#teePos;
     }
 
-    isValidPosition(position: RectPoint): boolean {
+    isValidPosition(position: RectPoint2D): boolean {
         return this.#layout.bounds.contains(position);
     }
 }

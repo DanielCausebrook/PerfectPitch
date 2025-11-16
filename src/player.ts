@@ -1,19 +1,19 @@
 import {Club, ClubBehaviour, clubs, type ClubStatus, type ClubType, getClub} from "./club";
 import {MersenneTwister19937, Random} from "random-js";
-import type {RectPoint} from "./geometry";
+import type {RectPoint2D} from "$lib/maths/point2D";
 
 const CLUB_BEHAVIOUR: ClubBehaviour = ClubBehaviour.Random;
 const REROLL_LOCKOUT = 3;
 
 
 export class Player {
-    position: RectPoint;
+    position: RectPoint2D;
     #clubs: Map<ClubType, ClubStatus>;
     #numRounds: number;
     #currRound: number = 0;
     #scoreBoard: number[];
 
-    constructor(position: RectPoint, numRounds: number, clubRng: Random) {
+    constructor(position: RectPoint2D, numRounds: number, clubRng: Random) {
         this.position = position;
         this.#numRounds = numRounds;
         this.#scoreBoard = Array(numRounds).fill(0);

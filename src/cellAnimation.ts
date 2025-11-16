@@ -1,5 +1,6 @@
 import {timeout} from "./utilities";
-import {getRectUnitVector, type RectDirection, RectPoint, rotateRectDirection, TiledRectRegion} from "./geometry";
+import {getRectUnitVector, type RectDirection, RectPoint2D, rotateRectDirection} from "$lib/maths/point2D";
+import type {RectTiling2D} from "$lib/maths/tiling2D";
 
 class CellAnimationComponent {
     #keyframes: Keyframe[];
@@ -117,7 +118,7 @@ export function createSinkAnimation(color: string, direction: RectDirection): Ce
         CellAnimation.glow(color, 20, 1000)
     );
 }
-export function playWinAnimation(center: RectPoint, cells: TiledRectRegion<HTMLElement>): Promise<void> {
+export function playWinAnimation(center: RectPoint2D, cells: RectTiling2D<HTMLElement>): Promise<void> {
     const duration = 5000;
     CellAnimation.glow('hsl(170, 80%, 60%)', 40, duration).play(cells.get(center));
     cells.forEach((cell, p) => {
@@ -125,7 +126,7 @@ export function playWinAnimation(center: RectPoint, cells: TiledRectRegion<HTMLE
             return;
         }
         let radius = center.sub(p);
-        let tangent = new RectPoint(radius.y, -radius.x);
+        let tangent = new RectPoint2D(radius.y, -radius.x);
         let distance = radius.magnitude();
 
         let intensity = Math.pow((distance+0.2+Math.random())*0.012, -0.55);

@@ -9,7 +9,8 @@
     import {createInteractAnimation, createSinkAnimation, playWinAnimation} from "./cellAnimation.js";
     import {IconArrowRight, IconChevronCompactUp} from "@tabler/icons-svelte";
     import {on} from "svelte/events";
-    import {RectDirection, RectPoint, rotateRectDirection, TiledRectRegion} from "./geometry";
+    import {RectDirection, RectPoint2D, rotateRectDirection} from "$lib/maths/point2D";
+    import {RectTiling2D} from "$lib/maths/tiling2D";
 
 
     export let course: Course;
@@ -17,15 +18,15 @@
 
     const listenerRemovers: (() => void)[] = [];
 
-    let cells: TiledRectRegion<HTMLElement> = TiledRectRegion.of(course.bounds(), null) as unknown as TiledRectRegion<HTMLElement>;
-    function registerCell(element: HTMLElement, data: RectPoint) {
+    let cells: RectTiling2D<HTMLElement> = RectTiling2D.of(course.bounds(), null) as unknown as RectTiling2D<HTMLElement>;
+    function registerCell(element: HTMLElement, data: RectPoint2D) {
         cells.set(data, element);
     }
 
     class DirectionRequest {
         #resolve: (direction: RectDirection) => void;
         #onChange: (request: DirectionRequest) => void;
-        dragCenter: RectPoint|null = null;
+        dragCenter: RectPoint2D|null = null;
         currentDragDirection: RectDirection|null = null;
         touchId: number|null = null;
         static readonly deadZone = 35;
@@ -40,7 +41,7 @@
                 this.#onChange(this);
             }
         }
-        dragStart(coordinates: RectPoint, touchId?: number) {
+        dragStart(coordinates: RectPoint2D, touchId?: number) {
             if (this.dragCenter === null) {
                 this.dragCenter = coordinates;
                 this.currentDragDirection = null;
@@ -48,7 +49,7 @@
                 this.#onChange(this);
             }
         }
-        dragMove(coordinates: RectPoint, touchId?: number) {
+        dragMove(coordinates: RectPoint2D, touchId?: number) {
             if (this.dragCenter !== null && this.touchId === (touchId ?? null)) {
                 let vector = coordinates.sub(this.dragCenter);
                 let distance = vector.magnitude();
@@ -95,7 +96,7 @@
     }
     let directionInputElement: HTMLElement;
     let directionRequest: DirectionRequest|null = null;
-    let relativeDragCenter: RectPoint|null = null;
+    let relativeDragCenter: RectPoint2D|null = null;
     let currentDragDirection: RectDirection|null = null;
     let cellDirectionHighlights: Map<string, string> = new Map();
 
@@ -112,7 +113,7 @@
                         relativeDragCenter = null;
                     } else {
                         let inputElementPos = directionInputElement.getBoundingClientRect();
-                        let inputElementPoint = new RectPoint(inputElementPos.left, inputElementPos.top);
+                        let inputElementPoint = new RectPoint2D(inputElementPos.left, inputElementPos.top);
                         relativeDragCenter = request.dragCenter.sub(inputElementPoint);
                     }
                     currentDragDirection = request.currentDragDirection;
@@ -142,7 +143,7 @@
         on(element, "mousedown", event => {
             if (event.button === 0 && directionRequest !== null) {
                 event.preventDefault();
-                directionRequest.dragStart(new RectPoint(event.x, event.y));
+                directionRequest.dragStart(new RectPoint2D(event.x, event.y));
             }
         });
         listenerRemovers.push(on(document, "mouseup", event => {
@@ -156,14 +157,14 @@
                 if ((event.buttons & 1) !== 1) {
                     directionRequest.dragEnd();
                 }
-                directionRequest.dragMove(new RectPoint(event.x, event.y));
+                directionRequest.dragMove(new RectPoint2D(event.x, event.y));
             }
         }));
         element.addEventListener("touchstart", event => {
             if (directionRequest !== null) {
                 event.preventDefault();
                 let touch = event.changedTouches[0];
-                directionRequest.dragStart(new RectPoint(touch.clientX, touch.clientY), touch.identifier);
+                directionRequest.dragStart(new RectPoint2D(touch.clientX, touch.clientY), touch.identifier);
             }
         });
         listenerRemovers.push(on(document, "touchend", event => {
@@ -191,7 +192,7 @@
                 for (const changedTouch of event.changedTouches) {
                     if (changedTouch.identifier === directionRequest.touchId) {
                         event.preventDefault();
-                        directionRequest.dragMove(new RectPoint(changedTouch.clientX, changedTouch.clientY), changedTouch.identifier);
+                        directionRequest.dragMove(new RectPoint2D(changedTouch.clientX, changedTouch.clientY), changedTouch.identifier);
                     }
                 }
             }
@@ -248,7 +249,7 @@
         let distanceBounced = 0;
         let slicedYet = false;
 
-        function updatePosition(pos: RectPoint) {
+        function updatePosition(pos: RectPoint2D) {
             player.position = pos;
         }
 
@@ -366,9 +367,9 @@
             {#each {length: course.height()} as _, y}
                 {#each {length: course.width()} as _, x}
                     {@const highlight = cellDirectionHighlights.get(`[${[x, y][0]}, ${[x, y][1]}]`) ?? null}
-                    <div class="cell" class:direction-highlight={highlight !== null} style="{highlight !== null ? `outline-color: ${highlight}; `: ''}" use:registerCell={new RectPoint(x, y)}>
+                    <div class="cell" class:direction-highlight={highlight !== null} style="{highlight !== null ? `outline-color: ${highlight}; `: ''}" use:registerCell={new RectPoint2D(x, y)}>
                         {#key course}
-                            <Cell size={20} cellType={course === null ? CellType.Water : course.cell(new RectPoint(x, y))} hasBall={course !== null && showBall && player.position.x === x && player.position.y === y} />
+                            <Cell size={20} cellType={course === null ? CellType.Water : course.cell(new RectPoint2D(x, y))} hasBall={course !== null && showBall && player.position.x === x && player.position.y === y} />
                         {/key}
                         <div class="glow-element"></div>
                     </div>

@@ -8,6 +8,7 @@
     import {base} from "$app/paths";
     import {mount, onMount, unmount} from "svelte";
     import {IconCalendarFilled, IconDice3, IconDice3Filled} from "@tabler/icons-svelte";
+    import {RectPoint2D} from "$lib/maths/point2D";
 
     export let seed: number|null;
     let currentRound: Record<string, any>|null = null;
@@ -16,7 +17,7 @@
 
     async function runGame(seed: number) {
         let rng = MersenneTwister19937.seed(seed);
-        let player = new Player([0, 0], 4, new Random(MersenneTwister19937.seed(rng.next())));
+        let player = new Player(new RectPoint2D(0, 0), 4, new Random(MersenneTwister19937.seed(rng.next())));
         for (let roundNum = 0; roundNum < player.numRounds(); roundNum++) {
             if (roundNum !== 0) player.newRound();
 
