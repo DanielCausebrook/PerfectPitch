@@ -94,8 +94,8 @@ export const clubs = new Map([
         .setBounces(false)
         .setSticks(false)
         .overrideSoundEffect(CellType.Sand, SoundEffect.sandWedge),
-    new Club(ClubType.Iron, 'Iron', IconDiamonds, [2, 3, 4, 5], 5, [CellType.Fairway, CellType.Rough, CellType.Tree], SoundEffect.iron),
-    new Club(ClubType.Driver, 'Driver', IconArrowBigRight, [3, 4, 5, 6], 5, [CellType.Fairway, CellType.Rough], SoundEffect.driver),
+    new Club(ClubType.Iron, 'Iron', IconDiamonds, [3, 4, 4, 5], 5, [CellType.Fairway, CellType.Rough, CellType.Tree], SoundEffect.iron),
+    new Club(ClubType.Driver, 'Driver', IconArrowBigRight, [4, 5, 6, 7], 6, [CellType.Fairway, CellType.Rough], SoundEffect.driver),
 ].map(c => [c.type, c]));
 
 export function getClub(clubType: ClubType): Club {

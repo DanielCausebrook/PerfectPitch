@@ -2,7 +2,7 @@ import {MersenneTwister19937, Random} from "random-js";
 import {SoundEffect} from "./soundEffect";
 import {generateTeeAndHolePos, generateTerrain} from "./terrainGeneration";
 import {RectPoint2D} from "$lib/maths/point2D";
-import {RectRegion2D, type RectTiling2D} from "$lib/maths/tiling2D";
+import {RectRegion2D, RectTile, type RectTiling2D, type Tiling2D} from "$lib/maths/tiling2D";
 
 export enum CellType {
     Hole,
@@ -76,7 +76,7 @@ export class Course {
 
     static generate(width: number, height: number, xEdge: number, yEdge: number, rng: Random): Course {
         let [teePos, holePos] = generateTeeAndHolePos(width, height, xEdge, yEdge, new Random(MersenneTwister19937.seed(rng.uint32())));
-        let map = generateTerrain(width, height, xEdge, yEdge, teePos,  holePos, new Random(MersenneTwister19937.seed(rng.uint32())));
+        let map = generateTerrain(width, height, teePos, holePos, new Random(MersenneTwister19937.seed(rng.uint32())));
 
         return new Course(map, holePos, teePos);
     }

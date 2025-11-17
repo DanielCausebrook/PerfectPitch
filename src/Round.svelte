@@ -369,7 +369,7 @@
                     {@const highlight = cellDirectionHighlights.get(`[${[x, y][0]}, ${[x, y][1]}]`) ?? null}
                     <div class="cell" class:direction-highlight={highlight !== null} style="{highlight !== null ? `outline-color: ${highlight}; `: ''}" use:registerCell={new RectPoint2D(x, y)}>
                         {#key course}
-                            <Cell size={20} cellType={course === null ? CellType.Water : course.cell(new RectPoint2D(x, y))} hasBall={course !== null && showBall && player.position.x === x && player.position.y === y} />
+                            <Cell size={17} cellType={course === null ? CellType.Water : course.cell(new RectPoint2D(x, y))} hasBall={course !== null && showBall && player.position.x === x && player.position.y === y} />
                         {/key}
                         <div class="glow-element"></div>
                     </div>
@@ -444,7 +444,7 @@
     .grid {
         flex: 0 0 auto;
         display: grid;
-        gap: 3px;
+        gap: 2px;
         position: relative;
 
         > .cell {

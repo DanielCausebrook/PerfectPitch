@@ -21,7 +21,7 @@
         for (let roundNum = 0; roundNum < player.numRounds(); roundNum++) {
             if (roundNum !== 0) player.newRound();
 
-            const course = Course.generate(22, 22, 3, 2.5, new Random(MersenneTwister19937.seed(rng.next())));
+            const course = Course.generate(30, 30, 3, 2.5, new Random(MersenneTwister19937.seed(rng.next())));
             player.position = course.tee();
 
             if (currentRound !== null ) {

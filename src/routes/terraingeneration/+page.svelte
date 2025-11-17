@@ -3,30 +3,42 @@
     import {CellType, getCellData} from "../../course";
     import {MersenneTwister19937, Random} from "random-js";
     import {
-        createTerrainDebugSettings,
-        DebugMap, generateHexTerrainDebug, generateTeeAndHolePos, generateTerrainDebug,
-        TerrainDebugBool,
-        TerrainDebugRadioGroup,
+        generateHexTerrainDebug, generateTeeAndHolePos,
+        generateRectTerrainDebug,
     } from "../../terrainGeneration";
-    import {TerrainDebugNumber} from "../../terrainGeneration.js";
     import {
-        getHexUnitVector,
-        HexDirection,
+        HexPoint2D,
         type Point2D,
         RectPoint2D,
     } from "$lib/maths/point2D";
-    import {HexTiling2D, RectTiling2D, type Tile, type Tiling2D} from "$lib/maths/tiling2D";
+    import {HexRegion2D, HexTiling2D, RectTiling2D, type Tile, type Tiling2D} from "$lib/maths/tiling2D";
+    import {
+        createTerrainDebugSettings,
+        DebugMap,
+        TerrainDebugBool,
+        TerrainDebugNumber,
+        TerrainDebugRadioGroup
+    } from "$lib/terrainDebug";
+    import {generateOldRectTerrainDebug} from "../../terrainGenerationOld";
 
     let canvases: {element: HTMLCanvasElement|null}[] = Array(24).fill(null).map(() => {return {element: null}});
     let seed = MersenneTwister19937.autoSeed().next();
-    const width = 20;
-    const height = 22;
+    const width = 30;
+    const height = 32;
     const xEdge = 2;
     const yEdge = 3;
     const detail = 5;
-    const cellDimensions = 10;
+    const cellDimensions = 7;
 
     const debugSettings = createTerrainDebugSettings();
+
+    const HEX_SCALE = 0.62;
+
+    function hexPointToPixelPos(hexPoint: HexPoint2D, bounds: HexRegion2D): RectPoint2D {
+        const offset = new RectPoint2D(-bounds.qMin*1.6, -bounds.sMin*1.85);
+        return hexPoint.toRect().add(offset).mult(HEX_SCALE*cellDimensions);
+
+    }
 
     function renderHexagon(center: Point2D, r: number, fill: string, ctx: CanvasRenderingContext2D) {
         const p = center.toRect();
@@ -41,7 +53,7 @@
         ctx.fill()
     }
 
-    function renderMap<T extends Tile>(map: Tiling2D<T, CellType>|DebugMap<T>, ctx: CanvasRenderingContext2D) {
+    function renderMap<T extends Tile>(map: Tiling2D<T, CellType>|DebugMap<T>, teePos: Point2D, ctx: CanvasRenderingContext2D) {
         if (map instanceof DebugMap) {
             if (map.map instanceof RectTiling2D) {
                 map.map.forEach((value, p) => {
@@ -69,7 +81,6 @@
                     }
                 });
             } else if (map.map instanceof HexTiling2D) {
-                const offset = new RectPoint2D(-map.map.bounds.qMin*1.6, -map.map.bounds.sMin*1.85);
                 map.map.forEach((value, p) => {
                     let numValue = 0;
                     let outOfRange = false;
@@ -83,17 +94,18 @@
                         numValue = value ? 1 : 0;
                     }
                     const fill = `color-mix(in oklch, hsl(0, 50%, 50%) ${numValue * 100}%, hsl(240, 50%, 50%))`;
-                    renderHexagon(p.toRect().add(offset).mult(cellDimensions/2), cellDimensions/2, fill, ctx);
+                    const pixelP = hexPointToPixelPos(p, map.map.bounds as HexRegion2D);
+                    renderHexagon(hexPointToPixelPos(p, map.map.bounds as HexRegion2D), HEX_SCALE*cellDimensions, fill, ctx);
 
                     if (outOfRange) {
                         ctx.fillStyle = 'black';
                         ctx.beginPath();
-                        let pR = p.toRect();
-                        ctx.arc(pR.x * cellDimensions, pR.y * cellDimensions, cellDimensions/8, 0, 2 * Math.PI);
+                        ctx.arc(pixelP.x, pixelP.y, cellDimensions/8, 0, 2 * Math.PI);
                         ctx.closePath();
                         ctx.fill();
                     }
                 });
+
             } else {
                 throw new Error("Cannot render this type of tiled region.");
             }
@@ -103,12 +115,25 @@
                     ctx.fillStyle = getCellData(cell).primaryColor;
                     ctx.fillRect(p.x*cellDimensions, p.y*cellDimensions, cellDimensions, cellDimensions);
                 });
+
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                const pixelP = teePos.toRect().add(new RectPoint2D(0.5, 0.5)).mult(cellDimensions);
+                ctx.arc(pixelP.x, pixelP.y, cellDimensions/4, 0, 2 * Math.PI);
+                ctx.closePath();
+                ctx.fill();
             } else if (map instanceof HexTiling2D) {
-                const offset = new RectPoint2D(-map.bounds.qMin*1.6, -map.bounds.sMin*1.85);
                 map.forEach((cell, p) => {
                     const fill = getCellData(cell).primaryColor;
-                    renderHexagon(p.toRect().add(offset).mult(cellDimensions/2), cellDimensions/2, fill, ctx)
+                    renderHexagon(hexPointToPixelPos(p, map.bounds), HEX_SCALE*cellDimensions, fill, ctx)
                 });
+
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                const pixelP = hexPointToPixelPos(teePos.toHex(), map.bounds);
+                ctx.arc(pixelP.x, pixelP.y, cellDimensions/4, 0, 2 * Math.PI);
+                ctx.closePath();
+                ctx.fill();
             } else {
                 throw new Error("Cannot render this type of tiled region.");
             }
@@ -130,15 +155,26 @@
             let ctx = canvasElem?.getContext("2d") ?? null;
             if (canvasElem !== null && ctx !== null) {
                 ctx.clearRect(0, 0, canvasElem.width, canvasElem.height);
-                if (!debugSettings.get('hex')) {
+                let generator = debugSettings.get('generator');
+                if (generator === 'hex') {
+                    let north = Math.PI/2;
+                    let angleRange = Math.PI/2;
+                    let holeAngle = north + rng.real(-angleRange/2, angleRange/2) + (rng.bool() ? Math.PI : 0);
+                    let teeAngle = holeAngle + Math.PI + rng.real(-angleRange/2, angleRange/2);
+                    let holePos = RectPoint2D.fromPolar(rng.real(1.7*width/5, 2.2*width/5), holeAngle).toHex().toCell();
+                    let teePos = RectPoint2D.fromPolar(rng.real(1.7*width/5, 2.2*width/5), teeAngle).toHex().toCell();
+                    let map = generateHexTerrainDebug(Math.round(width*0.5), teePos, holePos, new Random(MersenneTwister19937.seed(rng.uint32())), debugSettings);
+                    renderMap(map, teePos, ctx);
+                } else if (generator === 'rect') {
                     let [teePos, holePos] = generateTeeAndHolePos(width, height, xEdge, yEdge, new Random(MersenneTwister19937.seed(rng.uint32())));
-                    let map = generateTerrainDebug(width, height, xEdge, yEdge, teePos,  holePos, new Random(MersenneTwister19937.seed(rng.uint32())), debugSettings);
-                    renderMap(map, ctx);
+                    let map = generateRectTerrainDebug(width, height, teePos, holePos, new Random(MersenneTwister19937.seed(rng.uint32())), debugSettings);
+                    renderMap(map, teePos, ctx);
+                } else if (generator === 'old') {
+                    let [teePos, holePos] = generateTeeAndHolePos(width, height, xEdge, yEdge, new Random(MersenneTwister19937.seed(rng.uint32())));
+                    let map = generateOldRectTerrainDebug(width, height, xEdge, yEdge, teePos, holePos, new Random(MersenneTwister19937.seed(rng.uint32())), debugSettings);
+                    renderMap(map, teePos, ctx);
                 } else {
-                    let holePos = getHexUnitVector(HexDirection.Sr).mult(width/3);
-                    let teePos = holePos.neg();
-                    let map = generateHexTerrainDebug(Math.round(width*0.65), 0, 0, teePos, holePos, new Random(MersenneTwister19937.seed(rng.uint32())), debugSettings);
-                    renderMap(map, ctx);
+                    throw new Error("Unknown generator type.");
                 }
             }
         }

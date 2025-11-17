@@ -98,6 +98,7 @@ export interface Point2D {
     neg(): Point2D;
     mult(factor: number): Point2D;
     magnitude(): number;
+    equals(other: Point2D): boolean;
 }
 
 export class RectPoint2D implements Point2D {
@@ -109,12 +110,16 @@ export class RectPoint2D implements Point2D {
         this.y = y;
     }
 
+    static fromPolar(r: number, theta: number) {
+        return new RectPoint2D(r * Math.cos(theta), r * Math.sin(theta));
+    }
+
     toRect(): RectPoint2D {
         return this;
     }
 
     toHex(): HexPoint2D {
-        return new HexPoint2D(this.x * Math.sqrt(3)/3 - this.y * (1/3), this.y * 2/3);
+        return new HexPoint2D(this.x * 2/3, this.x * -1/3 + this.y * Math.sqrt(3)/3);
     }
 
     add(other: Point2D): RectPoint2D {
