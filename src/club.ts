@@ -1,4 +1,4 @@
-import {CellType} from "./course";
+import {CellType} from "$lib/hole";
 import {SoundEffect} from "./soundEffect";
 import {type Icon, IconArrowBigRight, IconCone, IconDiamonds, IconPoint} from "@tabler/icons-svelte";
 import {MersenneTwister19937, Random} from "random-js";
@@ -107,6 +107,8 @@ export enum ClubBehaviour {
     Sequential,
 }
 
+const PREVENT_REPEATS = true;
+
 export interface ClubStatus {
     faces(): number[];
     next(): {distance: number, sliceValues: (-1|0|1)[]}|null;
@@ -200,6 +202,7 @@ export class RandomClubStatus implements ClubStatus {
     readonly #shotPreviewHighlights: string[];
     private readonly faceRng: Random;
     private readonly sliceRng: Random;
+    private lastFace: number|null = null;
 
     constructor(club: Club, rng: Random) {
         this.#faces = club.diceFaces().slice().reverse();
@@ -224,7 +227,17 @@ export class RandomClubStatus implements ClubStatus {
     }
 
     next(): {distance: number, sliceValues: (-1|0|1)[]}|null {
-        let distance = this.faceRng.pick(this.#faces);
+        let face: number;
+        if (PREVENT_REPEATS && this.lastFace !== null) {
+            face = this.faceRng.integer(0, this.#faces.length - 2);
+            if (face >= this.lastFace) {
+                face++;
+            }
+        } else {
+            face = this.faceRng.integer(0, this.#faces.length - 1);
+        }
+        this.lastFace = face;
+        let distance = this.#faces[face];
 
         let slice: (-1|0|1)[] = [];
         for (let i = 0; i < distance; i++) {
