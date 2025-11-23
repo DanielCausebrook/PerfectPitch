@@ -383,65 +383,6 @@ export function generateTerrainDebug<R extends Region2D>(region: R, edgeWidth: n
         }
     });
 
-    // const SAMPLE_SPACING = 4;
-    //
-    // const vecToHole = holePos.sub(teePos);
-    // const holeLength = vecToHole.magnitude();
-    // const actualSampleSpacing = holeLength / Math.floor(holeLength/SAMPLE_SPACING); // Bigger than SAMPLE_SPACING
-    // const unitVecToHole = vecToHole.mult(1/holeLength);
-    //
-    // let sampleResults = [];
-    // let sampleDebug = [];
-    // let sampleNum = 0;
-    // for (let i = actualSampleSpacing/2; i < holeLength; i += actualSampleSpacing) {
-    //     const pos = teePos.add(unitVecToHole.mult(i));
-    //     const sampleHeatFn = heatFnGenerator(p => p.sub(pos).magnitude())
-    //         .mapInput(p => pathMapTransform.transFormPoint(p));
-    //     const sampleFn = sampleHeatFn.map(v => v > 0.6);
-    //     if (debug?.is('map', 'par') && Math.floor(debug?.get('parSample')) === sampleNum) {
-    //         if (debug?.get('m')) return new DebugMap(region.tile(sampleHeatFn));
-    //         return new DebugMap(region.tile(sampleFn));
-    //     }
-    //     sampleNum++;
-    //
-    //     let numCells = 0;
-    //     let numFairway = 0;
-    //     let numRough = 0;
-    //     let numTree = 0
-    //     let numRock = 0;
-    //     let numSand = 0;
-    //     let numWater = 0;
-    //     map.forEach((cell, p) => {
-    //         if (sampleFn.get(p)) {
-    //             numCells += 1;
-    //             if (cell === CellType.Fairway) {
-    //                 numFairway += 1;
-    //             } else if (cell === CellType.Rough) {
-    //                 numRough += 1;
-    //             } else if (cell === CellType.Tree) {
-    //                 numTree += 1;
-    //             } else if (cell === CellType.Rock) {
-    //                 numRock += 1;
-    //             } else if (cell === CellType.Sand) {
-    //                 numSand += 1;
-    //             } else if (cell === CellType.Water) {
-    //                 numWater += 1;
-    //             }
-    //         }
-    //     });
-    //     sampleResults.push(1);
-    //     sampleDebug.push({
-    //         cells: numCells,
-    //         fairway: numFairway,
-    //         rough: numRough,
-    //         tree: numTree,
-    //         rock: numRock,
-    //         sand: numSand,
-    //         water: numWater,
-    //     });
-    // }
-    // console.log(sampleDebug);
-
     const pathfindingCostMap = map.mapNew(cell => {
         switch (cell) {
             case CellType.Fairway: return 0.8;
