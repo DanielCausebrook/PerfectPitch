@@ -442,49 +442,27 @@ export function generateTerrainDebug<R extends Region2D>(region: R, edgeWidth: n
     // }
     // console.log(sampleDebug);
 
-    const pathfindingRegion = pathMap.mapNew(v => v > 0.5);
-    const pathToHole = aStar(pathfindingRegion, teePos, flagPos);
-    let parEstimate: number;
-    if (pathToHole !== null) {
-        const pathToHoleLength = pathToHole.length;
-        const pathToHoleMap = region.tilingOf(false);
-        pathToHole.forEach(p => pathToHoleMap.set(p, true));
-        const sampleRegion = pathToHoleMap.mapNew(v => v ? 1 : 0).asNumeric().blur(3).mapNew(v => v > 0.05);
-        let numCells = 0;
-        let numFairway = 0;
-        let numRough = 0;
-        let numTree = 0
-        let numRock = 0;
-        let numSand = 0;
-        let numWater = 0;
-        map.forEach((cell, p) => {
-            if (sampleRegion.get(p)) {
-                numCells += 1;
-                if (cell === CellType.Fairway) {
-                    numFairway += 1;
-                } else if (cell === CellType.Rough) {
-                    numRough += 1;
-                } else if (cell === CellType.Tree) {
-                    numTree += 1;
-                } else if (cell === CellType.Rock) {
-                    numRock += 1;
-                } else if (cell === CellType.Sand) {
-                    numSand += 1;
-                } else if (cell === CellType.Water) {
-                    numWater += 1;
-                }
-            }
-        });
-
-        if (debug?.is('map', 'par')) {
-            if (debug?.get('m')) return new DebugMap(pathfindingRegion);
-            return new DebugMap(sampleRegion);
+    const pathfindingCostMap = map.mapNew(cell => {
+        switch (cell) {
+            case CellType.Fairway: return 0.8;
+            case CellType.Rough: return 1;
+            case CellType.Tree: return 2;
+            case CellType.Sand: return 2;
+            case CellType.Rock: return 5;
+            case CellType.Water: return 3;
+            case CellType.Flag: return 0;
+            default: throw new Error(`Unknown cell type ${cell}`);
         }
-
-        const difficultyEstimate = (numRock + numTree + numWater/2 - numFairway/4) / numCells;
-        parEstimate = 1 + Math.round((pathToHoleLength / 4) * (1 + difficultyEstimate));
-    } else {
-        parEstimate = 1 + Math.round(flagPos.sub(teePos).magnitude() / 4);
+    }).asNumeric()
+        .blur(3)
+        .map((v, p) => map.get(p) === CellType.Rock ? Infinity : v);
+    const pathToHole = aStar(pathfindingCostMap, teePos, flagPos);
+    let parEstimate = Math.round((pathToHole?.reduce((sum, nextP) => sum + pathfindingCostMap.get(nextP), 0) ?? 0) / 3.5);
+    if (debug?.is('map', 'par')) {
+        if (debug?.get('m')) return new DebugMap(pathfindingCostMap.copy().multiply(0.3));
+        const pathToHoleMap = region.tilingOf(false);
+        pathToHole?.forEach(p => pathToHoleMap.set(p, true));
+        return new DebugMap(pathToHoleMap);
     }
 
     return new Hole(map, teePos, flagPos, parEstimate);

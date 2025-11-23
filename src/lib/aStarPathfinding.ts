@@ -9,9 +9,9 @@ import {
 
 function pHash(p: Point2D): string {
     if (p instanceof RectPoint2D) {
-        return p.x.toString() + p.y.toString();
+        return p.x.toString() + ", " + p.y.toString();
     } else if (p instanceof HexPoint2D) {
-        return p.q.toString() + p.r.toString();
+        return p.q.toString()+ ", " + p.r.toString();
     } else {
         throw new Error("Unsupported point type.");
     }
@@ -44,9 +44,9 @@ function possibleNeighbours(p: Point2D): Point2D[] {
 }
 
 // https://en.wikipedia.org/wiki/A*_search_algorithm
-export function aStar<R extends Region2D>(map: Tiling2D<R, boolean>, start: Point2D, end: Point2D): Point2D[]|null {
+export function aStar<R extends Region2D>(map: Tiling2D<R, number>, start: Point2D, end: Point2D): Point2D[]|null {
     const heuristic = (p: Point2D) => p.sub(end).magnitude();
-    const neighbours = (p: Point2D) => possibleNeighbours(p).filter(p => map.bounds.contains(p) && map.get(p))
+    const neighbours = (p: Point2D) => possibleNeighbours(p).filter(p => map.bounds.contains(p))
 
     const openSet = new Map<string, Point2D>();
     const openSet_has = (p: Point2D) => openSet.has(pHash(p));
@@ -96,7 +96,7 @@ export function aStar<R extends Region2D>(map: Tiling2D<R, boolean>, start: Poin
         openSet_delete(current);
 
         for (const neighbour of neighbours(current)) {
-            const neighbourDist = 1;
+            const neighbourDist = map.get(neighbour);
             const tentativeGScore = gScore_get(current) + neighbourDist;
             if (tentativeGScore < gScore_get(neighbour)) {
                 cameFrom_set(neighbour, current);
