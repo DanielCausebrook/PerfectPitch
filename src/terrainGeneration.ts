@@ -1,27 +1,19 @@
 import {MersenneTwister19937, Random} from "random-js";
 import {createNoise2D, type NoiseFunction2D} from "simplex-noise";
-import {CellType} from "./course";
+import {CellType, Hole} from "$lib/hole";
 import {HexPoint2D, type Point2D, RectPoint2D} from "$lib/maths/point2D";
-import {
-    HexRegion2D,
-    HexTile,
-    RectRegion2D,
-    RectTile,
-    RectTiling2D,
-    type Region2D,
-    type Tile,
-    type Tiling2D
-} from "$lib/maths/tiling2D";
-import {type Function2D, LiteralFunction2D, NumericFunction2D, NumericLiteralFunction2D} from "$lib/maths/function2D";
+import {HexRegion2D, RectRegion2D, type Region2D} from "$lib/maths/tiling2D";
+import {type Function2D, NumericFunction2D, NumericLiteralFunction2D} from "$lib/maths/function2D";
 import {DebugMap, TerrainDebugSettings} from "$lib/terrainDebug";
+import {aStar, fMinus} from "$lib/aStarPathfinding";
 
-export class MapBuilder<T extends Tile> {
-    readonly plane: Region2D<T>;
+export class MapBuilder<R extends Region2D> {
+    readonly region: R;
     #rng: Random;
     #globalScale: number = 1;
 
-    constructor(plane: Region2D<T>, rng: Random) {
-        this.plane = plane;
+    constructor(plane: R, rng: Random) {
+        this.region = plane;
         this.#rng = rng;
     }
 
@@ -39,18 +31,22 @@ export class MapBuilder<T extends Tile> {
     }
 
     buildWarpNoiseMap(scale: number, warpScale: number, warpAmount: number): NumericFunction2D {
-        let inner = new Noise2D(scale*this.#globalScale, this.nextRng());
-        let noise = new NoiseWarp2D(inner, warpScale*this.#globalScale, warpAmount/this.#globalScale, this.nextRng());
-        return noise.asNumeric().multiply(0.5, 1);
+        const noiseWarpTransform = new NoiseWarpTransform(
+            warpScale*this.#globalScale, warpAmount/this.#globalScale, this.nextRng()
+        );
+        return new Noise2D(scale*this.#globalScale, this.nextRng()).multiply(0.5, 1)
+            .mapInput(p => noiseWarpTransform.transformPoint(p));
     }
 
     buildLoopyNoiseMap(scale: number, warpAmount: number, warpVarianceScale: number, warpVariance: number, loopScale: number, loopiness: number): NumericFunction2D {
-        let inner = new Noise2D(scale*this.#globalScale, this.nextRng());
-        let noise = new LoopyWarp2D(inner, warpAmount/this.#globalScale, warpVarianceScale*this.#globalScale, warpVariance/this.#globalScale, loopScale*this.#globalScale, loopiness, this.nextRng());
-        return noise.asNumeric().multiply(0.5, 1);
+
+        const loopyWarpTransform = new LoopyWarpTransform(
+            warpAmount/this.#globalScale, warpVarianceScale*this.#globalScale, warpVariance/this.#globalScale, loopScale*this.#globalScale, loopiness, this.nextRng()
+        );
+        return new Noise2D(scale*this.#globalScale, this.nextRng()).multiply(0.5, 1)
+            .mapInput(p => loopyWarpTransform.transformPoint(p));
     }
 }
-
 
 export class Noise2D extends NumericLiteralFunction2D {
     #noise: NoiseFunction2D;
@@ -70,78 +66,73 @@ export class Noise2D extends NumericLiteralFunction2D {
     }
 }
 
-export class NoiseWarp2D<T> extends LiteralFunction2D<T> {
-    #inner: Function2D<T>;
+export class NoiseWarpTransform  {
     #warpX: Noise2D;
     #warpY: Noise2D;
     #warpAmount: number;
 
-    constructor(inner: Function2D<T>, scale: number, amount: number, rng: Random) {
-        super(p => {
-            const warp = new RectPoint2D(
-                this.#warpAmount*this.#warpX.get(p),
-                this.#warpAmount*this.#warpY.get(p),
-            );
-            return this.#inner.get(p.add(warp));
-        });
+    constructor(scale: number, amount: number, rng: Random) {
         this.#warpAmount = amount;
-        this.#inner = inner;
         this.#warpX = new Noise2D(scale, rng);
         this.#warpY = new Noise2D(scale, rng);
     }
+
+    transformPoint(p: Point2D): Point2D {
+        return p.add(new RectPoint2D(
+            this.#warpAmount * this.#warpX.get(p),
+            this.#warpAmount * this.#warpY.get(p),
+        ));
+    }
 }
 
-export class LoopyWarp2D<T> extends LiteralFunction2D<T> {
-    #inner: Function2D<T>;
+export class LoopyWarpTransform {
     #warpAngle: Noise2D;
     #warpVariance: Noise2D;
     #warpVarianceAmount: number;
     #warpAmount: number;
     #angleAmount: number;
 
-    constructor(inner: Function2D<T>, amount: number, varianceScale: number, variance: number, loopScale: number, loopiness: number, rng: Random) {
-        super(p => {
-            const tau = 2*Math.PI;
-            let angle = this.#angleAmount * this.#warpAngle.get(p) * tau; // Radians
-            angle = ((angle % tau) + tau) % tau;
-            let magnitude = this.#warpAmount + this.#warpVarianceAmount * this.#warpVariance.get(p);
-            let warp: RectPoint2D;
-            if (angle < 0.25*tau) {
-                warp = new RectPoint2D(
-                    magnitude*Math.cos(angle),
-                    magnitude*Math.sin(angle),
-                );
-            } else if (angle < 0.5*tau) {
-                warp = new RectPoint2D(
-                    -magnitude*Math.sin(angle-0.25*tau),
-                    magnitude*Math.cos(angle-0.25*tau),
-                );
-            } else if (angle < 0.75*tau) {
-                warp = new RectPoint2D(
-                    -magnitude*Math.cos(angle-0.5*tau),
-                    -magnitude*Math.sin(angle-0.5*tau),
-                );
-            } else {
-                warp = new RectPoint2D(
-                    magnitude*Math.sin(angle-0.75*tau),
-                    -magnitude*Math.cos(angle-0.75*tau),
-                );
-            }
-            Math.tan(angle);
-            return this.#inner.get(p.add(warp));
-
-        });
-        this.#inner = inner;
+    constructor(amount: number, varianceScale: number, variance: number, loopScale: number, loopiness: number, rng: Random) {
         this.#warpAmount = amount;
         this.#warpAngle = new Noise2D(loopScale, rng);
         this.#warpVariance = new Noise2D(varianceScale, rng);
         this.#warpVarianceAmount = variance;
         this.#angleAmount = loopiness*loopScale;
     }
+
+    transformPoint(p: Point2D): Point2D {
+        const tau = 2*Math.PI;
+        let angle = this.#angleAmount * this.#warpAngle.get(p) * tau; // Radians
+        angle = ((angle % tau) + tau) % tau;
+        let magnitude = this.#warpAmount + this.#warpVarianceAmount * this.#warpVariance.get(p);
+        let warp: RectPoint2D;
+        if (angle < 0.25*tau) {
+            warp = new RectPoint2D(
+                magnitude*Math.cos(angle),
+                magnitude*Math.sin(angle),
+            );
+        } else if (angle < 0.5*tau) {
+            warp = new RectPoint2D(
+                -magnitude*Math.sin(angle-0.25*tau),
+                magnitude*Math.cos(angle-0.25*tau),
+            );
+        } else if (angle < 0.75*tau) {
+            warp = new RectPoint2D(
+                -magnitude*Math.cos(angle-0.5*tau),
+                -magnitude*Math.sin(angle-0.5*tau),
+            );
+        } else {
+            warp = new RectPoint2D(
+                magnitude*Math.sin(angle-0.75*tau),
+                -magnitude*Math.cos(angle-0.75*tau),
+            );
+        }
+        Math.tan(angle);
+        return p.add(warp);
+    }
 }
 
-export class LoopyWarpWithAmountMap2D<T> extends LiteralFunction2D<T> {
-    #inner: Function2D<T>;
+export class LoopyWarpByAmountTransform {
     #warpAngle: Noise2D;
     #warpVariance: Noise2D;
     #warpVarianceAmount: number;
@@ -149,45 +140,44 @@ export class LoopyWarpWithAmountMap2D<T> extends LiteralFunction2D<T> {
     #angleOffset: number;
     #angleAmount: number;
 
-    constructor(inner: Function2D<T>, amount: Function2D<number>, varianceScale: number, variance: number, loopScale: number, loopiness: number, rng: Random) {
-        super(p => {
-            const tau = 2*Math.PI;
-            let angle = this.#angleOffset + this.#angleAmount * this.#warpAngle.get(p) * tau; // Radians
-            angle = ((angle % tau) + tau) % tau;
-            let magnitude = this.#warpAmount.get(p) + this.#warpVarianceAmount * this.#warpVariance.get(p);
-            let warp: RectPoint2D;
-            if (angle < 0.25*tau) {
-                warp = new RectPoint2D(
-                    magnitude*Math.cos(angle),
-                    magnitude*Math.sin(angle),
-                );
-            } else if (angle < 0.5*tau) {
-                warp = new RectPoint2D(
-                    -magnitude*Math.sin(angle-0.25*tau),
-                    magnitude*Math.cos(angle-0.25*tau),
-                );
-            } else if (angle < 0.75*tau) {
-                warp = new RectPoint2D(
-                    -magnitude*Math.cos(angle-0.5*tau),
-                    -magnitude*Math.sin(angle-0.5*tau),
-                );
-            } else {
-                warp = new RectPoint2D(
-                    magnitude*Math.sin(angle-0.75*tau),
-                    -magnitude*Math.cos(angle-0.75*tau),
-                );
-            }
-            Math.tan(angle);
-            return this.#inner.get(p.add(warp));
-
-        });
-        this.#inner = inner;
+    constructor(amount: Function2D<number>, varianceScale: number, variance: number, loopScale: number, loopiness: number, rng: Random) {
         this.#warpAmount = amount;
         this.#warpAngle = new Noise2D(loopScale, rng);
         this.#warpVariance = new Noise2D(varianceScale, rng);
         this.#warpVarianceAmount = variance;
         this.#angleAmount = loopiness*loopScale;
         this.#angleOffset = rng.real(0, 2*Math.PI);
+    }
+
+    transFormPoint(p: Point2D): Point2D {
+        const tau = 2*Math.PI;
+        let angle = this.#angleOffset + this.#angleAmount * this.#warpAngle.get(p) * tau; // Radians
+        angle = ((angle % tau) + tau) % tau;
+        let magnitude = this.#warpAmount.get(p) + this.#warpVarianceAmount * this.#warpVariance.get(p);
+        let warp: RectPoint2D;
+        if (angle < 0.25*tau) {
+            warp = new RectPoint2D(
+                magnitude*Math.cos(angle),
+                magnitude*Math.sin(angle),
+            );
+        } else if (angle < 0.5*tau) {
+            warp = new RectPoint2D(
+                -magnitude*Math.sin(angle-0.25*tau),
+                magnitude*Math.cos(angle-0.25*tau),
+            );
+        } else if (angle < 0.75*tau) {
+            warp = new RectPoint2D(
+                -magnitude*Math.cos(angle-0.5*tau),
+                -magnitude*Math.sin(angle-0.5*tau),
+            );
+        } else {
+            warp = new RectPoint2D(
+                magnitude*Math.sin(angle-0.75*tau),
+                -magnitude*Math.cos(angle-0.75*tau),
+            );
+        }
+        Math.tan(angle);
+        return p.add(warp);
     }
 }
 
@@ -231,7 +221,7 @@ function distToSegmentSquared(p: RectPoint2D, v:RectPoint2D, w:RectPoint2D) {
 }
 function distToSegment(p: Point2D, v: Point2D, w: Point2D) { return Math.sqrt(distToSegmentSquared(p.toRect(), v.toRect(), w.toRect())); }
 
-function edgeProximityFunctionGenerator<T extends Tile>(region: Region2D<T>, edgeWidth: number): NumericFunction2D {
+function edgeProximityFunctionGenerator<R extends Region2D>(region: R, edgeWidth: number): NumericFunction2D {
     if (region instanceof RectRegion2D) {
         return new NumericLiteralFunction2D(p => {
             let pR = p.toRect();
@@ -267,7 +257,7 @@ function edgeProximityFunctionGenerator<T extends Tile>(region: Region2D<T>, edg
     }
 }
 
-export function generateTerrainDebug<T extends Tile>(region: Region2D<T>, edgeWidth: number, teePos: Point2D, holePos: Point2D, rng: Random, debug?: TerrainDebugSettings): Tiling2D<T, CellType> | DebugMap<T> {
+export function generateTerrainDebug<R extends Region2D>(region: R, edgeWidth: number, teePos: Point2D, flagPos: Point2D, rng: Random, debug?: TerrainDebugSettings): Hole<R> | DebugMap<R> {
     let mB = new MapBuilder(region, rng);
 
     if (debug?.is('map', 'noise')) return new DebugMap(region.tile(
@@ -280,7 +270,7 @@ export function generateTerrainDebug<T extends Tile>(region: Region2D<T>, edgeWi
     const holeSize = 10;
     const teeSize = 10;
     let endsFn = new NumericLiteralFunction2D(p => {
-        let holeProx = 1 - Math.min(holeSize, p.sub(holePos).magnitude())/holeSize;
+        let holeProx = 1 - Math.min(holeSize, p.sub(flagPos).magnitude())/holeSize;
         let teeProx = 1 - Math.min(teeSize, p.sub(teePos).magnitude())/teeSize;
         return Math.max(holeProx, teeProx);
     });
@@ -288,19 +278,20 @@ export function generateTerrainDebug<T extends Tile>(region: Region2D<T>, edgeWi
     if (debug?.is('map', 'pathEnds')) return new DebugMap(region.tile(endsFn));
 
     const pathWidth = 15;
-    let rawPathFn = new NumericLiteralFunction2D(p => {
-        return 1 - Math.min(pathWidth, distToSegment(p, holePos, teePos))/pathWidth;
-    });
+    const heatFnGenerator = (distFn: (p: Point2D) => number) => new NumericLiteralFunction2D(p => 1 - Math.min(pathWidth, distFn(p))/pathWidth);
     const pathLoopyAmountFn = NumericFunction2D.product(
         endsFn.invert().clamp(),
         edgeProximityFn.invert().clamp(),
     ).multiply(15);
-    let pathFn = new LoopyWarpWithAmountMap2D(rawPathFn, pathLoopyAmountFn, 5, 0, 40, 0.015, mB.nextRng()).asNumeric();
+    const pathMapTransform = new LoopyWarpByAmountTransform(pathLoopyAmountFn, 5, 0, 40, 0.015, mB.nextRng());
+
+    let basePathHeatFn = heatFnGenerator(p => distToSegment(p, flagPos, teePos));
+    let pathFn = basePathHeatFn.mapInput(p => pathMapTransform.transFormPoint(p));
     const pathMap = region.tile(pathFn).asNumeric();
     if (debug?.is('map', 'path')) return new DebugMap(region.tile(
         !debug?.get('m')
             ? !debug?.get('n') ? pathFn : pathLoopyAmountFn.multiply(1/10)
-            : rawPathFn
+            : basePathHeatFn
     ));
 
     let landMap = region.tile(
@@ -372,9 +363,9 @@ export function generateTerrainDebug<T extends Tile>(region: Region2D<T>, edgeWi
     if (debug?.is('map', 't')) return new DebugMap(treeValFn);
     let treeMap = treeValFn.boolThreshold(0.65);
 
-    return region.tile(p => {
-        if (p.equals(holePos)) {
-            return CellType.Hole;
+    const map = region.tile(p => {
+        if (p.equals(flagPos)) {
+            return CellType.Flag;
         }
         switch (true) {
             case waterMap.get(p):
@@ -391,23 +382,129 @@ export function generateTerrainDebug<T extends Tile>(region: Region2D<T>, edgeWi
                 return CellType.Rough;
         }
     });
+
+    // const SAMPLE_SPACING = 4;
+    //
+    // const vecToHole = holePos.sub(teePos);
+    // const holeLength = vecToHole.magnitude();
+    // const actualSampleSpacing = holeLength / Math.floor(holeLength/SAMPLE_SPACING); // Bigger than SAMPLE_SPACING
+    // const unitVecToHole = vecToHole.mult(1/holeLength);
+    //
+    // let sampleResults = [];
+    // let sampleDebug = [];
+    // let sampleNum = 0;
+    // for (let i = actualSampleSpacing/2; i < holeLength; i += actualSampleSpacing) {
+    //     const pos = teePos.add(unitVecToHole.mult(i));
+    //     const sampleHeatFn = heatFnGenerator(p => p.sub(pos).magnitude())
+    //         .mapInput(p => pathMapTransform.transFormPoint(p));
+    //     const sampleFn = sampleHeatFn.map(v => v > 0.6);
+    //     if (debug?.is('map', 'par') && Math.floor(debug?.get('parSample')) === sampleNum) {
+    //         if (debug?.get('m')) return new DebugMap(region.tile(sampleHeatFn));
+    //         return new DebugMap(region.tile(sampleFn));
+    //     }
+    //     sampleNum++;
+    //
+    //     let numCells = 0;
+    //     let numFairway = 0;
+    //     let numRough = 0;
+    //     let numTree = 0
+    //     let numRock = 0;
+    //     let numSand = 0;
+    //     let numWater = 0;
+    //     map.forEach((cell, p) => {
+    //         if (sampleFn.get(p)) {
+    //             numCells += 1;
+    //             if (cell === CellType.Fairway) {
+    //                 numFairway += 1;
+    //             } else if (cell === CellType.Rough) {
+    //                 numRough += 1;
+    //             } else if (cell === CellType.Tree) {
+    //                 numTree += 1;
+    //             } else if (cell === CellType.Rock) {
+    //                 numRock += 1;
+    //             } else if (cell === CellType.Sand) {
+    //                 numSand += 1;
+    //             } else if (cell === CellType.Water) {
+    //                 numWater += 1;
+    //             }
+    //         }
+    //     });
+    //     sampleResults.push(1);
+    //     sampleDebug.push({
+    //         cells: numCells,
+    //         fairway: numFairway,
+    //         rough: numRough,
+    //         tree: numTree,
+    //         rock: numRock,
+    //         sand: numSand,
+    //         water: numWater,
+    //     });
+    // }
+    // console.log(sampleDebug);
+
+    const pathfindingRegion = pathMap.mapNew(v => v > 0.5);
+    const pathToHole = aStar(pathfindingRegion, teePos, flagPos);
+    let parEstimate: number;
+    if (pathToHole !== null) {
+        const pathToHoleLength = pathToHole.length;
+        const pathToHoleMap = region.tilingOf(false);
+        pathToHole.forEach(p => pathToHoleMap.set(p, true));
+        const sampleRegion = pathToHoleMap.mapNew(v => v ? 1 : 0).asNumeric().blur(3).mapNew(v => v > 0.05);
+        let numCells = 0;
+        let numFairway = 0;
+        let numRough = 0;
+        let numTree = 0
+        let numRock = 0;
+        let numSand = 0;
+        let numWater = 0;
+        map.forEach((cell, p) => {
+            if (sampleRegion.get(p)) {
+                numCells += 1;
+                if (cell === CellType.Fairway) {
+                    numFairway += 1;
+                } else if (cell === CellType.Rough) {
+                    numRough += 1;
+                } else if (cell === CellType.Tree) {
+                    numTree += 1;
+                } else if (cell === CellType.Rock) {
+                    numRock += 1;
+                } else if (cell === CellType.Sand) {
+                    numSand += 1;
+                } else if (cell === CellType.Water) {
+                    numWater += 1;
+                }
+            }
+        });
+
+        if (debug?.is('map', 'par')) {
+            if (debug?.get('m')) return new DebugMap(pathfindingRegion);
+            return new DebugMap(sampleRegion);
+        }
+
+        const difficultyEstimate = (numRock + numTree + numWater/2 - numFairway/4) / numCells;
+        parEstimate = 1 + Math.round((pathToHoleLength / 4) * (1 + difficultyEstimate));
+    } else {
+        parEstimate = 1 + Math.round(flagPos.sub(teePos).magnitude() / 4);
+    }
+
+    return new Hole(map, teePos, flagPos, parEstimate);
 }
 
-export function generateHexTerrainDebug(size: number, teePos: HexPoint2D, holePos: HexPoint2D, rng: Random, debug?: TerrainDebugSettings): Tiling2D<HexTile, CellType> | DebugMap<HexTile> {
+export function generateHexTerrainDebug(size: number, teePos: HexPoint2D, flagPos: HexPoint2D, rng: Random, debug?: TerrainDebugSettings): Hole<HexRegion2D> | DebugMap<HexRegion2D> {
     const region = new HexRegion2D(-size + 1, size, -size + 1, size, -size + 1, size);
-    return generateTerrainDebug(region, 0.25*size, teePos, holePos, rng, debug);
+    return generateTerrainDebug(region, 0.25*size, teePos, flagPos, rng, debug);
 }
 
-export function generateRectTerrainDebug(width: number, height: number, teePos: RectPoint2D, holePos: RectPoint2D, rng: Random, debug?: TerrainDebugSettings): Tiling2D<RectTile, CellType> | DebugMap<RectTile> {
+export function generateRectTerrainDebug(width: number, height: number, teePos: RectPoint2D, flagPos: RectPoint2D, rng: Random, debug?: TerrainDebugSettings): Hole<RectRegion2D> | DebugMap<RectRegion2D> {
     const region = new RectRegion2D(width, height);
-    return generateTerrainDebug(region, 0.2*Math.min(width, height), teePos, holePos, rng, debug);
+    return generateTerrainDebug(region, 0.2*Math.min(width, height), teePos, flagPos, rng, debug);
 }
 
-export function generateTerrain(width: number, height: number, teePos: RectPoint2D, holePos: RectPoint2D, rng: Random): RectTiling2D<CellType> {
+export function generateTerrain(width: number, height: number, teePos: RectPoint2D, flagPos: RectPoint2D, rng: Random): Hole<RectRegion2D> {
     const region = new RectRegion2D(width, height);
-    let maybeTerrain = generateTerrainDebug(region, 0.2*Math.min(width, height), teePos, holePos, rng);
+    let maybeTerrain = generateTerrainDebug(region, 0.2*Math.min(width, height), teePos, flagPos, rng);
     if (maybeTerrain instanceof DebugMap) {
         throw new Error("Terrain Generation returned debug map without any debug settings being supplied.");
     }
-    return maybeTerrain as RectTiling2D<CellType>; // TODO Remove need for cast
+    return maybeTerrain as Hole<RectRegion2D>; // TODO Remove need for cast
 }

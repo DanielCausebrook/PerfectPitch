@@ -1,11 +1,15 @@
 import {MersenneTwister19937, Random} from "random-js";
-import {SoundEffect} from "./soundEffect";
-import {generateTeeAndHolePos, generateTerrain} from "./terrainGeneration";
-import {RectPoint2D} from "$lib/maths/point2D";
-import {RectRegion2D, RectTile, type RectTiling2D, type Tiling2D} from "$lib/maths/tiling2D";
+import {SoundEffect} from "../soundEffect";
+import {generateTeeAndHolePos, generateTerrain} from "../terrainGeneration";
+import {type Point2D, RectPoint2D} from "$lib/maths/point2D";
+import {
+    RectRegion2D,
+    type Region2D,
+    type Tiling2D
+} from "$lib/maths/tiling2D";
 
 export enum CellType {
-    Hole,
+    Flag,
     Fairway,
     Rough,
     Water,
@@ -32,7 +36,7 @@ export function getCellData(cellType: CellType): CellData {
             .setBlockSoundEffect(SoundEffect.tree);
         case CellType.Rock: return new CellData('hsl(120, 0%, 30%)', CellBlockType.Block, false, 0, 0)
             .setBlockSoundEffect(SoundEffect.tree);
-        case CellType.Hole: return new CellData('hsl(170, 60%, 45%)', CellBlockType.None, false, 0, 0);
+        case CellType.Flag: return new CellData('hsl(170, 60%, 45%)', CellBlockType.None, false, 0, 0);
     }
 }
 
@@ -63,45 +67,27 @@ export class CellData {
     }
 }
 
-export class Course {
-    #layout: RectTiling2D<CellType>;
-    #holePos: RectPoint2D;
-    #teePos: RectPoint2D;
+export class Hole<R extends Region2D> {
+    readonly bounds: R;
+    readonly map: Tiling2D<R, CellType>;
+    readonly teePos: Point2D;
+    readonly flagPos: Point2D;
+    readonly par: number;
 
-    constructor(layout: RectTiling2D<CellType>, holePos: RectPoint2D, teePos: RectPoint2D) {
-        this.#layout = layout;
-        this.#holePos = holePos;
-        this.#teePos = teePos;
+    constructor(map: Tiling2D<R, CellType>, teePos: Point2D, holePos: Point2D, par: number) {
+        this.map = map;
+        this.bounds = map.bounds;
+        this.teePos = teePos;
+        this.flagPos = holePos;
+        this.par = par;
     }
 
-    static generate(width: number, height: number, xEdge: number, yEdge: number, rng: Random): Course {
-        let [teePos, holePos] = generateTeeAndHolePos(width, height, xEdge, yEdge, new Random(MersenneTwister19937.seed(rng.uint32())));
-        let map = generateTerrain(width, height, teePos, holePos, new Random(MersenneTwister19937.seed(rng.uint32())));
-
-        return new Course(map, holePos, teePos);
+    static generate(width: number, height: number, xEdge: number, yEdge: number, rng: Random): Hole<RectRegion2D> {
+        let [teePos, flagPos] = generateTeeAndHolePos(width, height, xEdge, yEdge, new Random(MersenneTwister19937.seed(rng.uint32())));
+        return generateTerrain(width, height, teePos, flagPos, new Random(MersenneTwister19937.seed(rng.uint32())));
     }
 
-    bounds(): RectRegion2D {
-        return this.#layout.bounds;
-    }
-
-    height(): number {
-        return this.#layout.bounds.height;
-    }
-
-    width(): number {
-        return this.#layout.bounds.width;
-    }
-
-    cell(position: RectPoint2D): CellType {
-        return this.#layout.get(position);
-    }
-
-    tee(): RectPoint2D {
-        return this.#teePos;
-    }
-
-    isValidPosition(position: RectPoint2D): boolean {
-        return this.#layout.bounds.contains(position);
+    cell(position: Point2D): CellType {
+        return this.map.get(position);
     }
 }

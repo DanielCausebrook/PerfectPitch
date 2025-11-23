@@ -1,24 +1,29 @@
 <script lang="ts">
     import ClubSelector from "./ClubSelector.svelte";
     import {type Club} from "./club";
-    import {CellBlockType, CellType, Course, getCellData} from "./course";
+    import {CellBlockType, CellType, getCellData} from "$lib/hole";
     import Cell from "./Cell.svelte";
-    import {Player} from "./player";
     import {SoundEffect} from "./soundEffect";
     import {timeout} from "./utilities";
     import {createInteractAnimation, createSinkAnimation, playWinAnimation} from "./cellAnimation.js";
     import {IconArrowRight, IconChevronCompactUp} from "@tabler/icons-svelte";
     import {on} from "svelte/events";
     import {RectDirection, RectPoint2D, rotateRectDirection} from "$lib/maths/point2D";
-    import {RectTiling2D} from "$lib/maths/tiling2D";
+    import {RectRegion2D, RectTiling2D} from "$lib/maths/tiling2D";
+    import type {Course} from "$lib/course";
 
 
-    export let course: Course;
-    export let player: Player;
+    export let course: Course<RectRegion2D>;
+
+    const hole = course.currentHole();
+    let player = course.players[0];
+    const bounds = hole.bounds;
+
+    $: relativeScore = course.scoreboard(player)[course.currentHoleNum()] - hole.par;
 
     const listenerRemovers: (() => void)[] = [];
 
-    let cells: RectTiling2D<HTMLElement> = RectTiling2D.of(course.bounds(), null) as unknown as RectTiling2D<HTMLElement>;
+    let cells: RectTiling2D<RectRegion2D, HTMLElement> = RectTiling2D.of(hole.map.bounds, null) as unknown as RectTiling2D<RectRegion2D, HTMLElement>;
     function registerCell(element: HTMLElement, data: RectPoint2D) {
         cells.set(data, element);
     }
@@ -130,7 +135,7 @@
             cellDirectionHighlights = cellDirectionHighlights;
             return;
         }
-        let highlightPos = player.position;
+        let highlightPos = player.position.toRect();
         player.clubStatus(selectedClub.type).shotPreviewHighlights().forEach(color => {
             cellDirectionHighlights.set(`[${highlightPos.x}, ${highlightPos.y}]`, color);
             highlightPos = highlightPos.move(direction);
@@ -216,7 +221,7 @@
     let showBall: boolean = true;
 
     async function takeTurn() {
-        if (selectedClub !== null && !selectedClub.canUseOn(course.cell(player.position))) {
+        if (selectedClub !== null && !selectedClub.canUseOn(hole.cell(player.position))) {
             selectedClub = null;
         }
         rerollClubs();
@@ -230,8 +235,8 @@
         let direction = await selectDirection();
         enableClubSelect = false;
         let clubForShot = selectedClub;
-        clubForShot.soundEffect(course.cell(player.position)).play();
-        player.addStroke();
+        clubForShot.soundEffect(hole.cell(player.position)).play();
+        course.addStroke(player);
 
         advanceClubLockout();
         let clubStatus = player.clubStatus(selectedClub.type);
@@ -255,7 +260,7 @@
 
         let startingPosition = player.position;
         if (!clubForShot.noShotModifier()) {
-            movementRemaining += getCellData(course.cell(startingPosition)).shotModifier;
+            movementRemaining += getCellData(hole.cell(startingPosition)).shotModifier;
         }
 
         while (movementRemaining > 0) {
@@ -266,15 +271,15 @@
                 direction = rotateRectDirection(direction, slice);
                 slicedYet = true;
             }
-            let newPosition = player.position.move(direction);
-            if (!course.isValidPosition(newPosition)) {
+            let newPosition = player.position.toRect().move(direction);
+            if (!hole.bounds.contains(newPosition)) {
                 if (distanceMoved === 1) await timeout(200);
                 distanceMoved--;
                 movementRemaining = 0;
                 break;
             }
 
-            let cell = course.cell(newPosition);
+            let cell = hole.cell(newPosition);
             let cellData = getCellData(cell);
             if (cellData.blockType === CellBlockType.Block) {
                 if (distanceMoved === 1) await timeout(200);
@@ -308,24 +313,24 @@
             }
         }
 
-        let cell = course.cell(player.position);
+        let cell = hole.cell(player.position);
         let cellData = getCellData(cell);
         if (distanceMoved > 0) {
             cellData.landSoundEffect?.play();
         }
         if (cellData.outOfBounds) {
             showBall = false;
-            player.addStroke();
+            course.addStroke(player);
             player = player;
             await createSinkAnimation(cellData.primaryColor, direction)
                 .play(cells.get(player.position));
             showBall = true;
             player.position = startingPosition;
-        } else if (cell === CellType.Hole) {
+        } else if (cell === CellType.Flag) {
             await timeout(400);
             win = true;
             SoundEffect.hole.play();
-            playWinAnimation(player.position, cells);
+            playWinAnimation(player.position.toRect(), cells);
         }
 
         // Prevent UI from flashing
@@ -349,27 +354,29 @@
 <div class="game">
     <div class="board">
         <div class="status">
-            <div class="hole">Hole 1</div>
+            <div class="hole">Hole {course.currentHoleNum() + 1}<span class="par">Par {hole.par}</span></div>
             <div class="scoreboard">
                 <ul>
-                    {#each {length: player.numRounds()} as _, roundNum}
-                        {#if roundNum === player.round()}
-                            <li class="score latest">{player.strokes()}</li>
-                        {:else}
-                            <li class="score">{(roundNum < player.round()) ? player.strokes(roundNum) : ''}</li>
-                        {/if}
+                    {#each {length: course.holes.length} as _, holeNum}
+                        <li class="score" class:latest={holeNum === course.currentHoleNum()}>
+                            {(holeNum <= course.currentHoleNum()) ? course.scoreboard(player)[holeNum] : ''}
+                            <div class="par">{course.holes[holeNum].par}</div>
+                        </li>
                     {/each}
                 </ul>
-                <div class="score total">{player.totalStrokes()}</div>
+                <div class="score total">
+                    {course.totalStrokes(player)}
+                    <div class="par">{course.holes.reduce((sum, next) => sum + next.par, 0)}</div>
+                </div>
             </div>
         </div>
-        <div class="grid" use:registerDirectionInputElement style="grid: repeat({course.height()}, 1fr) / repeat({course.width()}, 1fr);">
-            {#each {length: course.height()} as _, y}
-                {#each {length: course.width()} as _, x}
+        <div class="grid" use:registerDirectionInputElement style="grid: repeat({bounds.height}, 1fr) / repeat({bounds.width}, 1fr);">
+            {#each {length: bounds.height} as _, y}
+                {#each {length: bounds.width} as _, x}
                     {@const highlight = cellDirectionHighlights.get(`[${[x, y][0]}, ${[x, y][1]}]`) ?? null}
                     <div class="cell" class:direction-highlight={highlight !== null} style="{highlight !== null ? `outline-color: ${highlight}; `: ''}" use:registerCell={new RectPoint2D(x, y)}>
-                        {#key course}
-                            <Cell size={17} cellType={course === null ? CellType.Water : course.cell(new RectPoint2D(x, y))} hasBall={course !== null && showBall && player.position.x === x && player.position.y === y} />
+                        {#key hole}
+                            <Cell size={17} cellType={hole === null ? CellType.Water : hole.cell(new RectPoint2D(x, y))} hasBall={hole !== null && showBall && player.position.toRect().x === x && player.position.toRect().y === y} />
                         {/key}
                         <div class="glow-element"></div>
                     </div>
@@ -389,8 +396,26 @@
     <div class="bottom-panel">
         {#if win}
             <div class="win">
-                <span>Congratulations!</span>
-                {#if player.round() >= player.numRounds() - 1}
+                <span>
+                    {#if relativeScore === -4 }
+                        Condor
+                    {:else if relativeScore === -3}
+                        Albatross
+                    {:else if relativeScore === -2}
+                        Eagle
+                    {:else if relativeScore === -1}
+                        Birdie
+                    {:else if relativeScore === 0}
+                        Par
+                    {:else if relativeScore === 1}
+                        Bogey
+                    {:else if relativeScore === 2}
+                        Double Bogey
+                    {:else}
+                        {relativeScore > 0 ? '+' : ''}{relativeScore}
+                    {/if}
+                </span>
+                {#if course.currentHoleNum() >= course.holes.length - 1}
                     <!--                        <IconClipboardList size="36" stroke="3"/>-->
                 {:else}
                     <button type="button" class="standard-button" onclick={nextRound}>
@@ -401,7 +426,7 @@
         {/if}
         <ClubSelector
                 bind:player={player}
-                course={course}
+                course={hole}
                 enabled={enableClubSelect}
                 bind:selectedClub={selectedClub}
                 onSelect={onSelectClub}
@@ -439,6 +464,11 @@
 
         .hole {
             color: hsl(0, 0%, 60%);
+            .par {
+                margin-left: 25px;
+                color: hsl(0, 0%, 50%);
+                font-size: 80%;
+            }
         }
     }
     .grid {
@@ -509,6 +539,7 @@
         align-items: stretch;
         justify-content: center;
         gap: 10px;
+        padding-top: 10px; /* Because of par scores */
 
         .score {
             display: flex;
@@ -517,9 +548,18 @@
             font-size: 18pt;
             width: 40px;
             padding: 4px 3px;
+            position: relative;
 
             &.latest {
                 background: hsl(0, 0%, 23%);
+            }
+            > .par {
+                font-size: 60%;
+                color: hsl(0, 0%, 50%);
+                position: absolute;
+                left: 50%;
+                transform: translate(-50%, -100%);
+                top: -3px;
             }
         }
 
@@ -577,12 +617,14 @@
             justify-content: space-evenly;
             background: hsl(0, 0%, 80%);
             color: hsl(0, 0%, 5%);
-            padding: 5px 10px;
+            padding: 20px 40px;
             gap: 20px;
             border-radius: 4px;
 
             > span {
-                font-size: 24pt;
+                font-size: 32pt;
+                text-align: center;
+                flex: 1 1 auto;
             }
             > button {
                 display: flex;

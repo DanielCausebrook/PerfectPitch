@@ -1,4 +1,4 @@
-import type {Tile, Tiling2D} from "$lib/maths/tiling2D";
+import type {Region2D, Tiling2D} from "$lib/maths/tiling2D";
 
 export class TerrainDebugSetting<T> {
     id: string;
@@ -66,11 +66,17 @@ export class TerrainDebugSettings {
     }
 }
 
-export class DebugMap<T extends Tile> {
-    map: Tiling2D<T, number | boolean>;
+export class DebugMap<R extends Region2D> {
+    map: Tiling2D<R, number | boolean>;
+    value: number|null = null;
 
-    constructor(map: Tiling2D<T, number | boolean>) {
+    constructor(map: Tiling2D<R, number | boolean>) {
         this.map = map;
+    }
+
+    withValue(value: number): this {
+        this.value = value;
+        return this;
     }
 }
 
@@ -92,12 +98,9 @@ export function createTerrainDebugSettings() {
             .addOption('t', 'Trees')
             .addOption('s', 'Sand')
             .addOption('noise', 'Noise')
+            .addOption('par', 'Par Calc')
         )
-        .addSetting(new TerrainDebugRadioGroup('mapStage', 'Map Stage', 'end', 'End')
-            .addOption('1', '1')
-            .addOption('2', '2')
-            .addOption('3', '3')
-        )
+        .addSetting(new TerrainDebugNumber('parSample', 'Par Sample', 0, 9, 1, 0))
         .addSetting(new TerrainDebugNumber('a', 'A', -1, 1, 0.05, 0))
         .addSetting(new TerrainDebugNumber('b', 'B', -1, 1, 0.05, 0))
         .addSetting(new TerrainDebugNumber('c', 'C', -1, 1, 0.05, 0))

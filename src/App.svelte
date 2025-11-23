@@ -1,14 +1,13 @@
 <script lang="ts">
-    import {Course} from "./course";
+    import {Hole} from "$lib/hole";
     import {MersenneTwister19937, Random} from "random-js";
-    import {Player} from "./player";
     import Round from "./Round.svelte";
     import {randomSeed, seedFromString, seedToSeedId} from "./seed";
     import {goto} from "$app/navigation";
     import {base} from "$app/paths";
     import {mount, onMount, unmount} from "svelte";
-    import {IconCalendarFilled, IconDice3, IconDice3Filled} from "@tabler/icons-svelte";
-    import {RectPoint2D} from "$lib/maths/point2D";
+    import {IconCalendarFilled, IconDice3} from "@tabler/icons-svelte";
+    import {Course} from "$lib/course";
 
     export let seed: number|null;
     let currentRound: Record<string, any>|null = null;
@@ -17,12 +16,17 @@
 
     async function runGame(seed: number) {
         let rng = MersenneTwister19937.seed(seed);
-        let player = new Player(new RectPoint2D(0, 0), 4, new Random(MersenneTwister19937.seed(rng.next())));
-        for (let roundNum = 0; roundNum < player.numRounds(); roundNum++) {
-            if (roundNum !== 0) player.newRound();
-
-            const course = Course.generate(30, 30, 3, 2.5, new Random(MersenneTwister19937.seed(rng.next())));
-            player.position = course.tee();
+        const holes = [];
+        for (let i = 0; i < 4; i++) {
+            holes.push(Hole.generate(30, 30, 3, 2.5, new Random(MersenneTwister19937.seed(rng.next()))));
+        }
+        const course = new Course(holes, 1, new Random(MersenneTwister19937.seed(rng.next())));
+        for (const hole of course.holes) {
+            const i = course.holes.indexOf(hole);
+            if (i !== 0) {
+                course.newRound();
+            }
+            course.players.forEach(p => p.position = hole.teePos);
 
             if (currentRound !== null ) {
                 await unmount(currentRound, {outro: true});
@@ -31,7 +35,6 @@
                 target: document.querySelector('#round-container') as HTMLElement,
                 props: {
                     course: course,
-                    player: player,
                 }
             });
 

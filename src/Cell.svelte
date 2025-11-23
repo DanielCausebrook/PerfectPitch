@@ -1,5 +1,5 @@
 <script lang="ts">
-    import {CellType, getCellData} from "./course";
+    import {CellType, getCellData} from "$lib/hole";
     import {
         IconBackground,
         IconChristmasTreeFilled,
@@ -25,7 +25,7 @@
         <IconChristmasTreeFilled size="90%" color="hsl(120, 60%, 10%)" />
     {:else if cellType === CellType.Rock}
         <IconSquareXFilled size="90%" color="hsl(0, 0%, 37%)" stroke="3" />
-    {:else if cellType === CellType.Hole}
+    {:else if cellType === CellType.Flag}
         <IconGolf size="100%" stroke="3" color="hsl(180, 80%, 70%)" />
     {:else if cellType === CellType.Water}
         <IconRipple size="90%" color="hsl(210, 50%, 45%)" />

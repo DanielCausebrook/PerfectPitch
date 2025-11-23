@@ -3,6 +3,7 @@ import type {Point2D} from "./point2D";
 export interface Function2D<T> {
     get(point: Point2D): T;
     map<T2>(fn: (v: T, p: Point2D) => T2): Function2D<T2>;
+    mapInput(fn: (p: Point2D) => Point2D): Function2D<T>;
     shiftInput(point: Point2D): Function2D<T>;
     scaleInput(factor: number, center?: Point2D): Function2D<T>;
     asNumeric(): T extends number ? NumericFunction2D : never;
@@ -10,6 +11,7 @@ export interface Function2D<T> {
 
 export interface NumericFunction2D extends Function2D<number> {
     mapNumeric(fn: (v: number, p: Point2D) => number): NumericFunction2D;
+    mapInput(fn: (p: Point2D) => Point2D): NumericFunction2D;
     shiftInput(point: Point2D): NumericFunction2D;
     scaleInput(factor: number, center?: Point2D): NumericFunction2D;
     add(v: number): NumericFunction2D;
@@ -54,6 +56,9 @@ export class LiteralFunction2D<T> implements Function2D<T> {
     shiftInput(point: Point2D): Function2D<T> {
         return new LiteralFunction2D(p => this.get(p.add(point)));
     }
+    mapInput(fn: (p: Point2D) => Point2D): Function2D<T> {
+        return new LiteralFunction2D(p => this.get(fn(p)));
+    }
     scaleInput(factor: number, center?: Point2D): Function2D<T> {
         if (center !== undefined) {
             return new LiteralFunction2D(p => this.get(p.sub(center).mult(factor).add(center)));
@@ -71,6 +76,10 @@ export class NumericLiteralFunction2D extends LiteralFunction2D<number> implemen
     mapNumeric(fn: (v: number, p: Point2D) => number): NumericFunction2D {
         return MappedFunction2D.from(this, fn).asNumeric();
     }
+    mapInput(fn: (p: Point2D) => Point2D): NumericFunction2D {
+        return super.mapInput(fn).asNumeric();
+    }
+
     shiftInput(point: Point2D): NumericFunction2D {
         return super.shiftInput(point).asNumeric();
     }
@@ -131,6 +140,10 @@ export class MappedFunction2D<T> implements Function2D<T> {
         return MappedFunction2D.from(this, fn);
     }
 
+    mapInput(fn: (p: Point2D) => Point2D): Function2D<T> {
+        return new LiteralFunction2D(p => this.get(fn(p)));
+    }
+
     shiftInput(point: Point2D): Function2D<T> {
         return new LiteralFunction2D(p => this.get(p.add(point)));
     }
@@ -152,6 +165,10 @@ export class NumericMappedFunction2D extends MappedFunction2D<number> implements
     mapNumeric(fn: (v: number, p: Point2D) => number): NumericFunction2D {
         return NumericMappedFunction2D.from(this, fn).asNumeric();
     }
+    mapInput(fn: (p: Point2D) => Point2D): NumericFunction2D {
+        return super.mapInput(fn).asNumeric();
+    }
+
     shiftInput(point: Point2D): NumericFunction2D {
         return super.shiftInput(point).asNumeric();
     }

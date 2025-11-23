@@ -1,12 +1,12 @@
 import {RectDirection, RectPoint2D} from "$lib/maths/point2D";
 import {MersenneTwister19937, Random} from "random-js";
-import {RectRegion2D, RectTile, RectTiling2D} from "$lib/maths/tiling2D";
-import {CellType} from "./course";
+import {RectRegion2D, RectTiling2D} from "$lib/maths/tiling2D";
+import {CellType, Hole} from "$lib/hole";
 import {NumericFunction2D} from "$lib/maths/function2D";
 import {MapBuilder} from "./terrainGeneration";
 import {DebugMap, TerrainDebugSettings} from "$lib/terrainDebug";
 
-export function loopErasedRandomWalk(walls: RectTiling2D<boolean>, start: RectPoint2D, end: RectPoint2D, rng: Random): RectPoint2D[] {
+export function loopErasedRandomWalk(walls: RectTiling2D<RectRegion2D, boolean>, start: RectPoint2D, end: RectPoint2D, rng: Random): RectPoint2D[] {
     let markDelay = 1;
     function positionHash(pos: RectPoint2D) { return pos.x + ',' + pos.y; }
     let startHash = positionHash(start);
@@ -97,7 +97,7 @@ export function loopErasedRandomWalk(walls: RectTiling2D<boolean>, start: RectPo
     }
 }
 
-export function generateOldRectTerrainDebug(width: number, height: number, xEdge: number, yEdge: number, teePos: RectPoint2D, holePos: RectPoint2D, rng: Random, debug?: TerrainDebugSettings): RectTiling2D<CellType> | DebugMap<RectTile> {
+export function generateOldRectTerrainDebug(width: number, height: number, xEdge: number, yEdge: number, teePos: RectPoint2D, holePos: RectPoint2D, rng: Random, debug?: TerrainDebugSettings): Hole<RectRegion2D> | DebugMap<RectRegion2D> {
     const region = new RectRegion2D(width, height);
     let mB = new MapBuilder(region, rng);
 
@@ -240,9 +240,9 @@ export function generateOldRectTerrainDebug(width: number, height: number, xEdge
     if (debug?.is('map', 't')) return new DebugMap(treeMapV);
     let treeMap = treeMapV.boolThreshold(0.65);
 
-    return region.tile(p => {
+    return new Hole(region.tile(p => {
         if (p.equals(holePos)) {
-            return CellType.Hole;
+            return CellType.Flag;
         }
         switch (true) {
             case waterMap.get(p):
@@ -258,5 +258,5 @@ export function generateOldRectTerrainDebug(width: number, height: number, xEdge
             default:
                 return CellType.Rough;
         }
-    });
+    }), teePos, holePos, 0);
 }

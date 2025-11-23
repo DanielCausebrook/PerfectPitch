@@ -9,12 +9,13 @@
     } from "@tabler/icons-svelte";
     import {onMount} from "svelte";
     import {on} from "svelte/events";
-    import type {Player} from "./player";
-    import type {Course} from "./course";
+    import type {Player} from "$lib/player";
+    import type {Hole} from "$lib/hole.ts";
+    import type {RectRegion2D} from "$lib/maths/tiling2D";
 
     export let enabled = true;
     export let player: Player;
-    export let course: Course;
+    export let course: Hole<RectRegion2D>;
     export let selectedClub: Club|null = null;
     export let onSelect: ((clubData: Club) => void)|null = null;
     export const advanceLockout = ():void => {

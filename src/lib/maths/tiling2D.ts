@@ -2,21 +2,16 @@ import {HexPoint2D, type Point2D, RectPoint2D} from "$lib/maths/point2D";
 import gaussian from "gaussian";
 import type {Function2D} from "$lib/maths/function2D";
 
-export interface Tile {}
-
-export class RectTile implements Tile {}
-export class HexTile implements Tile {}
-
-export interface Region2D<T extends Tile> {
+export interface Region2D {
     contains(point: Point2D): boolean;
-    tilingOf<V>(value: V): Tiling2D<T, V>;
-    tile<V>(fn: Function2D<V>|((p: Point2D) => V)): Tiling2D<T, V>;
-    sum(...tilings: Tiling2D<T, number>[]): NumericTiling2D<T>;
-    product(...tilings: Tiling2D<T, number>[]): NumericTiling2D<T>;
-    equals(other: Region2D<T>): boolean;
+    tilingOf<V>(value: V): Tiling2D<this, V>;
+    tile<V>(fn: Function2D<V>|((p: Point2D) => V)): Tiling2D<this, V>;
+    sum(...tilings: Tiling2D<this, number>[]): NumericTiling2D<this>;
+    product(...tilings: Tiling2D<this, number>[]): NumericTiling2D<this>;
+    equals(other: Region2D): boolean;
 }
 
-export class RectRegion2D implements Region2D<RectTile> {
+export class RectRegion2D implements Region2D {
     width: number;
     height: number;
 
@@ -30,11 +25,11 @@ export class RectRegion2D implements Region2D<RectTile> {
         return p.x >= 0 && p.y >= 0 && p.x < this.width && p.y < this.height;
     }
 
-    tilingOf<V>(value: V): RectTiling2D<V> {
+    tilingOf<V>(value: V): RectTiling2D<this, V> {
         return RectTiling2D.of(this, value);
     }
 
-    tile<V>(fn: Function2D<V>|((p: RectPoint2D) => V)): RectTiling2D<V> {
+    tile<V>(fn: Function2D<V>|((p: RectPoint2D) => V)): RectTiling2D<this, V> {
         if ("get" in fn) {
             return RectTiling2D.build(this, p => fn.get(p));
         } else {
@@ -42,25 +37,25 @@ export class RectRegion2D implements Region2D<RectTile> {
         }
     }
 
-    sum(...tilings: Tiling2D<RectTile, number>[]): NumericRectTiling2D {
+    sum(...tilings: Tiling2D<RectRegion2D, number>[]): NumericRectTiling2D<this> {
         return this.tile(p =>
             tilings.reduce((sum, tiling) => sum + tiling.get(p), 0)
         ).asNumeric();
     }
 
-    offsetSum(offset: number, ...tilings: Tiling2D<RectTile, number>[]): NumericRectTiling2D {
+    offsetSum(offset: number, ...tilings: Tiling2D<RectRegion2D, number>[]): NumericRectTiling2D<this> {
         return this.tile(p =>
             tilings.reduce((sum, tiling) => sum + tiling.get(p) - offset, offset)
         ).asNumeric();
     }
 
-    product(...tilings: Tiling2D<RectTile, number>[]): NumericRectTiling2D {
+    product(...tilings: Tiling2D<RectRegion2D, number>[]): NumericRectTiling2D<this> {
         return this.tile(p =>
             tilings.reduce((prod, tiling) => prod * tiling.get(p), 1)
         ).asNumeric();
     }
 
-    equals(other: Region2D<RectTile>): boolean {
+    equals(other: Region2D): boolean {
         return other instanceof RectRegion2D ? (
             this.width === other.width
             && this.height === other.height
@@ -68,7 +63,7 @@ export class RectRegion2D implements Region2D<RectTile> {
     }
 }
 
-export class HexRegion2D implements Region2D<HexTile> {
+export class HexRegion2D implements Region2D {
     readonly qMin: number;
     readonly qMax: number;
     readonly rMin: number;
@@ -92,11 +87,11 @@ export class HexRegion2D implements Region2D<HexTile> {
             && p.s >= this.sMin && p.s < this.sMax;
     }
 
-    tilingOf<V>(value: V): HexTiling2D<V> {
+    tilingOf<V>(value: V): HexTiling2D<this, V> {
         return HexTiling2D.of(this, value);
     }
 
-    tile<V>(fn: Function2D<V>|((p: HexPoint2D) => V)): HexTiling2D<V> {
+    tile<V>(fn: Function2D<V>|((p: HexPoint2D) => V)): HexTiling2D<this, V> {
         if ("get" in fn) {
             return HexTiling2D.build(this, p => fn.get(p));
         } else {
@@ -104,19 +99,19 @@ export class HexRegion2D implements Region2D<HexTile> {
         }
     }
 
-    sum(...tilings: Tiling2D<RectTile, number>[]): NumericHexTiling2D {
+    sum(...tilings: Tiling2D<HexRegion2D, number>[]): NumericHexTiling2D<this> {
         return this.tile(p =>
             tilings.reduce((sum, tiling) => sum + tiling.get(p), 0)
         ).asNumeric();
     }
 
-    product(...tilings: Tiling2D<RectTile, number>[]): NumericHexTiling2D {
+    product(...tilings: Tiling2D<HexRegion2D, number>[]): NumericHexTiling2D<this> {
         return this.tile(p =>
             tilings.reduce((prod, tiling) => prod * tiling.get(p), 1)
         ).asNumeric();
     }
 
-    equals(other: Region2D<HexTile>): boolean {
+    equals(other: Region2D): boolean {
         return other instanceof HexRegion2D ? (
             this.qMin === other.qMin && this.qMax === other.qMax
             && this.rMin === other.rMin && this.rMax === other.rMax
@@ -125,44 +120,44 @@ export class HexRegion2D implements Region2D<HexTile> {
     }
 }
 
-export interface Tiling2D<T extends Tile, V> {
-    readonly bounds: Region2D<T>;
+export interface Tiling2D<out R extends Region2D, V> {
+    readonly bounds: R;
 
     get(point: Point2D): V;
     set(point: Point2D, value: V): void;
     forEach(fn: (value: V, p: Point2D) => void): void;
     map(fn: (v: V, p: Point2D) => V): this;
-    mapNew<V2>(fn: (v: V, p: Point2D) => V2): Tiling2D<T, V2>;
-    copy(): Tiling2D<T, V>;
-    asNumeric(): V extends number ? NumericTiling2D<T> : never;
+    mapNew<V2>(fn: (v: V, p: Point2D) => V2): Tiling2D<R, V2>;
+    copy(): Tiling2D<R, V>;
+    asNumeric(): V extends number ? NumericTiling2D<R> : never;
 }
 
-export interface NumericTiling2D<T extends Tile> extends Tiling2D<T, number> {
-    copy(): NumericTiling2D<T>;
+export interface NumericTiling2D<out R extends Region2D> extends Tiling2D<R, number> {
+    copy(): NumericTiling2D<R>;
     add(v: number): this;
     multiply(factor: number, center?: number): this;
     pinch(amount: number, center?: number, range?: number): this;
     invert(): this;
     clamp(low?: number, high?: number): this;
     threshold(value: number): this;
-    boolThreshold(value: number): Tiling2D<T, boolean>;
+    boolThreshold(value: number): Tiling2D<R, boolean>;
     blur(sigma: number): this;
 }
 
-export class RectTiling2D<V> implements Tiling2D<RectTile, V> {
-    readonly bounds: RectRegion2D;
+export class RectTiling2D<out R extends RectRegion2D, V> implements Tiling2D<R, V> {
+    readonly bounds: R;
     data: V[][];
 
-    constructor(bounds: RectRegion2D, data: V[][]) {
+    constructor(bounds: R, data: V[][]) {
         this.bounds = bounds;
         this.data = data;
     }
 
-    static of<T>(bounds: RectRegion2D, value: T): RectTiling2D<T> {
+    static of<R extends RectRegion2D, T>(bounds: R, value: T): RectTiling2D<R, T> {
         return new RectTiling2D(bounds, Array(bounds.width).fill(null).map(_ => Array(bounds.height).fill(value)));
     }
 
-    static build<T>(bounds: RectRegion2D, fn: (p: RectPoint2D) => T): RectTiling2D<T> {
+    static build<R extends RectRegion2D, T>(bounds: R, fn: (p: RectPoint2D) => T): RectTiling2D<R, T> {
         let data = [];
         for (let x = 0; x < bounds.width; x++) {
             let col = [];
@@ -202,11 +197,11 @@ export class RectTiling2D<V> implements Tiling2D<RectTile, V> {
         }
         return this;
     }
-    copy(): RectTiling2D<V> {
+    copy(): RectTiling2D<R, V> {
         return new RectTiling2D(this.bounds, this.data.map(col => col.slice()));
     }
 
-    mapNew<U>(fn: (v: V, p: Point2D) => U): RectTiling2D<U> {
+    mapNew<U>(fn: (v: V, p: Point2D) => U): RectTiling2D<R, U> {
         let data = [];
         for (let x = 0; x < this.bounds.width; x++) {
             let col = [];
@@ -217,13 +212,13 @@ export class RectTiling2D<V> implements Tiling2D<RectTile, V> {
         }
         return new RectTiling2D(this.bounds, data);
     }
-    asNumeric(): V extends number ? NumericRectTiling2D : never {
-        return new NumericRectTiling2D(this.bounds, this.data as number[][]) as V extends number ? NumericRectTiling2D : never;
+    asNumeric(): V extends number ? NumericRectTiling2D<R> : never {
+        return new NumericRectTiling2D(this.bounds, this.data as number[][]) as V extends number ? NumericRectTiling2D<R> : never;
     }
 }
 
-export class NumericRectTiling2D extends RectTiling2D<number> implements NumericTiling2D<RectTile> {
-    copy(): NumericRectTiling2D {
+export class NumericRectTiling2D<out R extends RectRegion2D> extends RectTiling2D<R, number> implements NumericTiling2D<RectRegion2D> {
+    copy(): NumericRectTiling2D<R> {
         return new NumericRectTiling2D(this.bounds, this.data.map(col => col.slice()));
     }
 
@@ -255,7 +250,7 @@ export class NumericRectTiling2D extends RectTiling2D<number> implements Numeric
     threshold(value: number): this {
         return this.map(v => v >= value ? 1 : 0);
     }
-    boolThreshold(value: number): RectTiling2D<boolean> {
+    boolThreshold(value: number): RectTiling2D<R, boolean> {
         return this.mapNew(v => v >= value);
     }
     blur(sigma: number): this {
@@ -299,22 +294,22 @@ export class NumericRectTiling2D extends RectTiling2D<number> implements Numeric
     }
 }
 
-export class HexTiling2D<V> implements Tiling2D<HexTile, V> {
-    readonly bounds: HexRegion2D;
+export class HexTiling2D<out R extends HexRegion2D, V> implements Tiling2D<R, V> {
+    readonly bounds: R;
     data: (V|null)[][];
 
-    constructor(bounds: HexRegion2D, data: (V|null)[][]) {
+    constructor(bounds: R, data: (V|null)[][]) {
         this.bounds = bounds;
         this.data = data;
     }
 
-    static of<T>(bounds: HexRegion2D, value: T): HexTiling2D<T> {
+    static of<R extends HexRegion2D, T>(bounds: R, value: T): HexTiling2D<R, T> {
         const qSize = bounds.qMax - bounds.qMin;
         const rSize = bounds.rMax - bounds.rMin;
         return new HexTiling2D(bounds, Array(qSize).fill(null).map(_ => Array(rSize).fill(value)));
     }
 
-    static build<T>(bounds: HexRegion2D, fn: (p: HexPoint2D) => T): HexTiling2D<T> {
+    static build<R extends HexRegion2D, T>(bounds: R, fn: (p: HexPoint2D) => T): HexTiling2D<R, T> {
         const qSize = bounds.qMax - bounds.qMin;
         const rSize = bounds.rMax - bounds.rMin;
 
@@ -377,10 +372,10 @@ export class HexTiling2D<V> implements Tiling2D<HexTile, V> {
         }
         return this;
     }
-    copy(): HexTiling2D<V> {
+    copy(): HexTiling2D<R, V> {
         return new HexTiling2D(this.bounds, this.data);
     }
-    mapNew<U>(fn: (v: V, p: Point2D) => U): HexTiling2D<U> {
+    mapNew<U>(fn: (v: V, p: Point2D) => U): HexTiling2D<R, U> {
         const qSize = this.bounds.qMax - this.bounds.qMin;
         const rSize = this.bounds.rMax - this.bounds.rMin;
 
@@ -402,13 +397,13 @@ export class HexTiling2D<V> implements Tiling2D<HexTile, V> {
 
     }
 
-    asNumeric(): V extends number ? NumericHexTiling2D : never {
-        return new NumericHexTiling2D(this.bounds, this.data as number[][]) as V extends number ? NumericHexTiling2D : never;
+    asNumeric(): V extends number ? NumericHexTiling2D<R> : never {
+        return new NumericHexTiling2D(this.bounds, this.data as number[][]) as V extends number ? NumericHexTiling2D<R> : never;
     }
 }
 
-export class NumericHexTiling2D extends HexTiling2D<number> implements NumericTiling2D<HexTile> {
-    copy(): NumericHexTiling2D {
+export class NumericHexTiling2D<out R extends HexRegion2D> extends HexTiling2D<R, number> implements NumericTiling2D<HexRegion2D> {
+    copy(): NumericHexTiling2D<R> {
         return new NumericHexTiling2D(this.bounds, this.data.map(col => col.slice()));
     }
 
@@ -440,7 +435,7 @@ export class NumericHexTiling2D extends HexTiling2D<number> implements NumericTi
     threshold(value: number): this {
         return this.map(v => v >= value ? 1 : 0);
     }
-    boolThreshold(value: number): HexTiling2D<boolean> {
+    boolThreshold(value: number): HexTiling2D<R, boolean> {
         return this.mapNew(v => v >= value);
     }
     blur(sigma: number): this {

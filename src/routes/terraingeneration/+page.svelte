@@ -1,6 +1,6 @@
 <script lang="ts">
     import {onMount} from "svelte";
-    import {CellType, getCellData} from "../../course";
+    import {getCellData, Hole} from "$lib/hole";
     import {MersenneTwister19937, Random} from "random-js";
     import {
         generateHexTerrainDebug, generateTeeAndHolePos,
@@ -11,7 +11,7 @@
         type Point2D,
         RectPoint2D,
     } from "$lib/maths/point2D";
-    import {HexRegion2D, HexTiling2D, RectTiling2D, type Tile, type Tiling2D} from "$lib/maths/tiling2D";
+    import {HexRegion2D, HexTiling2D, RectTiling2D, type Region2D} from "$lib/maths/tiling2D";
     import {
         createTerrainDebugSettings,
         DebugMap,
@@ -53,10 +53,11 @@
         ctx.fill()
     }
 
-    function renderMap<T extends Tile>(map: Tiling2D<T, CellType>|DebugMap<T>, teePos: Point2D, ctx: CanvasRenderingContext2D) {
-        if (map instanceof DebugMap) {
-            if (map.map instanceof RectTiling2D) {
-                map.map.forEach((value, p) => {
+    function renderMap<R extends Region2D>(input: Hole<R>|DebugMap<R>, ctx: CanvasRenderingContext2D) {
+        if (input instanceof DebugMap) {
+            const debugMap = input;
+            if (debugMap.map instanceof RectTiling2D) {
+                debugMap.map.forEach((value, p) => {
                     let numValue = 0;
                     let outOfRange = false;
                     if (typeof value == "number") {
@@ -80,8 +81,8 @@
                         ctx.fill();
                     }
                 });
-            } else if (map.map instanceof HexTiling2D) {
-                map.map.forEach((value, p) => {
+            } else if (debugMap.map instanceof HexTiling2D) {
+                debugMap.map.forEach((value, p) => {
                     let numValue = 0;
                     let outOfRange = false;
                     if (typeof value == "number") {
@@ -94,8 +95,8 @@
                         numValue = value ? 1 : 0;
                     }
                     const fill = `color-mix(in oklch, hsl(0, 50%, 50%) ${numValue * 100}%, hsl(240, 50%, 50%))`;
-                    const pixelP = hexPointToPixelPos(p, map.map.bounds as HexRegion2D);
-                    renderHexagon(hexPointToPixelPos(p, map.map.bounds as HexRegion2D), HEX_SCALE*cellDimensions, fill, ctx);
+                    const pixelP = hexPointToPixelPos(p, debugMap.map.bounds as unknown as HexRegion2D);
+                    renderHexagon(hexPointToPixelPos(p, debugMap.map.bounds as unknown as HexRegion2D), HEX_SCALE*cellDimensions, fill, ctx);
 
                     if (outOfRange) {
                         ctx.fillStyle = 'black';
@@ -110,7 +111,11 @@
                 throw new Error("Cannot render this type of tiled region.");
             }
         } else {
+            const hole = input;
+            const map = hole.map;
+
             if (map instanceof RectTiling2D) {
+
                 map.forEach((cell, p) => {
                     ctx.fillStyle = getCellData(cell).primaryColor;
                     ctx.fillRect(p.x*cellDimensions, p.y*cellDimensions, cellDimensions, cellDimensions);
@@ -118,7 +123,7 @@
 
                 ctx.fillStyle = 'white';
                 ctx.beginPath();
-                const pixelP = teePos.toRect().add(new RectPoint2D(0.5, 0.5)).mult(cellDimensions);
+                const pixelP = hole.teePos.toRect().add(new RectPoint2D(0.5, 0.5)).mult(cellDimensions);
                 ctx.arc(pixelP.x, pixelP.y, cellDimensions/4, 0, 2 * Math.PI);
                 ctx.closePath();
                 ctx.fill();
@@ -130,13 +135,16 @@
 
                 ctx.fillStyle = 'white';
                 ctx.beginPath();
-                const pixelP = hexPointToPixelPos(teePos.toHex(), map.bounds);
+                const pixelP = hexPointToPixelPos(hole.teePos.toHex(), map.bounds);
                 ctx.arc(pixelP.x, pixelP.y, cellDimensions/4, 0, 2 * Math.PI);
                 ctx.closePath();
                 ctx.fill();
             } else {
                 throw new Error("Cannot render this type of tiled region.");
             }
+            ctx.fillStyle = 'white';
+            ctx.font = "16px Verdana";
+            ctx.fillText(hole.par.toString(), 3, 16)
         }
     }
 
@@ -149,6 +157,7 @@
     }
 
     function renderAllMaps() {
+        console.log("===== Rendering Maps... =====");
         let rng = new Random(MersenneTwister19937.seed(seed));
         for (const canvas of canvases) {
             let canvasElem = canvas.element;
@@ -164,15 +173,15 @@
                     let holePos = RectPoint2D.fromPolar(rng.real(1.7*width/5, 2.2*width/5), holeAngle).toHex().toCell();
                     let teePos = RectPoint2D.fromPolar(rng.real(1.7*width/5, 2.2*width/5), teeAngle).toHex().toCell();
                     let map = generateHexTerrainDebug(Math.round(width*0.5), teePos, holePos, new Random(MersenneTwister19937.seed(rng.uint32())), debugSettings);
-                    renderMap(map, teePos, ctx);
+                    renderMap(map, ctx);
                 } else if (generator === 'rect') {
                     let [teePos, holePos] = generateTeeAndHolePos(width, height, xEdge, yEdge, new Random(MersenneTwister19937.seed(rng.uint32())));
                     let map = generateRectTerrainDebug(width, height, teePos, holePos, new Random(MersenneTwister19937.seed(rng.uint32())), debugSettings);
-                    renderMap(map, teePos, ctx);
+                    renderMap(map, ctx);
                 } else if (generator === 'old') {
                     let [teePos, holePos] = generateTeeAndHolePos(width, height, xEdge, yEdge, new Random(MersenneTwister19937.seed(rng.uint32())));
                     let map = generateOldRectTerrainDebug(width, height, xEdge, yEdge, teePos, holePos, new Random(MersenneTwister19937.seed(rng.uint32())), debugSettings);
-                    renderMap(map, teePos, ctx);
+                    renderMap(map, ctx);
                 } else {
                     throw new Error("Unknown generator type.");
                 }
