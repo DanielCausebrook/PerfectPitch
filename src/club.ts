@@ -87,7 +87,7 @@ export class Club {
 }
 
 export const clubs = new Map([
-    new Club(ClubType.Putter, 'Putter', IconPoint, [1, 1, 1, 2], 5, [CellType.Fairway], SoundEffect.putter)
+    new Club(ClubType.Putter, 'Putter', IconPoint, [1, 1, 1, 2], 5, [CellType.Fairway, CellType.Rough], SoundEffect.putter)
         .setBounces(false)
         .setNoShotModifier(true),
     new Club(ClubType.Wedge, 'Wedge', IconCone, [1, 2, 3, 3], 5, [CellType.Fairway, CellType.Rough, CellType.Tree, CellType.Sand], SoundEffect.wedge)
