@@ -8,10 +8,17 @@ const REROLL_LOCKOUT = 3;
 export class Player {
     position: Point2D;
     #clubs: Map<ClubType, ClubStatus>;
+    #clubRng: Random;
 
     constructor(position: Point2D, clubRng: Random) {
         this.position = position;
 
+        this.#clubRng = clubRng;
+        this.#clubs = new Map(); // Dummy to suppress ts uninitialised warning
+        this.resetClubsToNextRng();
+    }
+
+    resetClubsToNextRng(): void {
         const clubStatusFn = (c: Club, r: Random): ClubStatus => {
             switch (CLUB_BEHAVIOUR) {
                 case ClubBehaviour.Sequential: return c.createSequential(r, REROLL_LOCKOUT);
@@ -21,7 +28,7 @@ export class Player {
         };
         this.#clubs = new Map(clubs.values().map(c => [
             c.type,
-            clubStatusFn(c, new Random(MersenneTwister19937.seed(clubRng.uint32())))
+            clubStatusFn(c, new Random(MersenneTwister19937.seed(this.#clubRng.uint32())))
         ]));
     }
 

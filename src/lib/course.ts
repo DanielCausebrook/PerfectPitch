@@ -55,5 +55,8 @@ export class Course<R extends Region2D> {
             throw new Error("Cannot start new round. Already at last round!");
         }
         this.#currentHoleNum++;
+        for (const player of this.players) {
+            player.resetClubsToNextRng();
+        }
     }
 }
